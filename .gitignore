@@ -4,6 +4,24 @@
 dataset/
 result.txt
 test_results/
-results/
 logs/
 .DS_Store
+
+# datasets - never commit, they live in Google Drive
+*.csv
+*.npy
+!results/runs.csv
+
+# training artefacts
+checkpoints/
+results/*.npy
+results/*.pth
+
+# python
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+
+# editors / OS
+.vscode/
+Thumbs.db
