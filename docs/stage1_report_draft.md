@@ -99,6 +99,13 @@ hyperparameters) end to end on Google Colab (T4 GPU), fixed seed 2024:
 | 336 | 0.423 | **0.4233** | 0.433 | **0.4327** |
 | 720 | 0.466 | **0.4657** | 0.472 | **0.4720** |
 
+![MSE comparison](figures/mse_comparison.png)
+![MAE comparison](figures/mae_comparison.png)
+
+*(Regenerate with `python scripts/plot_results.py` after running the baselines
+cell — it will automatically add naive/seasonal-naive bars once
+`results/runs.csv` has those rows.)*
+
 **Match quality:** essentially exact — differences appear only in the 4th
 decimal place, consistent with ordinary GPU floating-point/cuDNN run-to-run
 nondeterminism rather than any methodological gap. There is no meaningful
