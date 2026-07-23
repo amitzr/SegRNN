@@ -38,6 +38,11 @@ parser.add_argument('--dec_way', default='pmf', help='decode way')
 parser.add_argument('--seg_len', type=int, default=48, help='segment length')
 parser.add_argument('--channel_id', type=int, default=1, help='Whether to enable channel position encoding')
 
+# SegRNNTime (Stage 2 improvement): width of the per-timestep calendar feature
+# vector from utils/timefeatures.py -- 4 for hourly data (ETTh1/ETTh2/Electricity),
+# unused by every other model.
+parser.add_argument('--mark_dim', type=int, default=4, help='SegRNNTime: calendar feature width')
+
 # DLinear
 #parser.add_argument('--individual', action='store_true', default=False, help='DLinear: a linear layer for each variate(channel) individually')
 

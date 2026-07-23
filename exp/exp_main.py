@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN
+from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop
 from utils.metrics import metric
 
@@ -33,7 +33,8 @@ class Exp_Main(Exp_Basic):
             'Linear': Linear,
             'PatchTST': PatchTST,
             'VanillaRNN': VanillaRNN,
-            'SegRNN': SegRNN
+            'SegRNN': SegRNN,
+            'SegRNNTime': SegRNNTime
         }
         model = model_dict[self.args.model].Model(self.args).float()
 
@@ -75,7 +76,9 @@ class Exp_Main(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                        if self.args.model == 'SegRNNTime':
+                            outputs = self.model(batch_x, batch_x_mark)
+                        elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
                             if self.args.output_attention:
@@ -83,7 +86,9 @@ class Exp_Main(Exp_Basic):
                             else:
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                    if self.args.model == 'SegRNNTime':
+                        outputs = self.model(batch_x, batch_x_mark)
+                    elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                         outputs = self.model(batch_x)
                     else:
                         if self.args.output_attention:
@@ -153,7 +158,9 @@ class Exp_Main(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                        if self.args.model == 'SegRNNTime':
+                            outputs = self.model(batch_x, batch_x_mark)
+                        elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
                             if self.args.output_attention:
@@ -167,7 +174,9 @@ class Exp_Main(Exp_Basic):
                         loss = criterion(outputs, batch_y)
                         train_loss.append(loss.item())
                 else:
-                    if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                    if self.args.model == 'SegRNNTime':
+                            outputs = self.model(batch_x, batch_x_mark)
+                    elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                     else:
                         if self.args.output_attention:
@@ -260,7 +269,9 @@ class Exp_Main(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                        if self.args.model == 'SegRNNTime':
+                            outputs = self.model(batch_x, batch_x_mark)
+                        elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
                             if self.args.output_attention:
@@ -268,7 +279,9 @@ class Exp_Main(Exp_Basic):
                             else:
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                    if self.args.model == 'SegRNNTime':
+                            outputs = self.model(batch_x, batch_x_mark)
+                    elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                     else:
                         if self.args.output_attention:
@@ -355,7 +368,9 @@ class Exp_Main(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                        if self.args.model == 'SegRNNTime':
+                            outputs = self.model(batch_x, batch_x_mark)
+                        elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
                             if self.args.output_attention:
@@ -363,7 +378,9 @@ class Exp_Main(Exp_Basic):
                             else:
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    if any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
+                    if self.args.model == 'SegRNNTime':
+                        outputs = self.model(batch_x, batch_x_mark)
+                    elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                         outputs = self.model(batch_x)
                     else:
                         if self.args.output_attention:

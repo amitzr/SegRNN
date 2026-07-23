@@ -1,14 +1,13 @@
 """
-Generate comparison figures (paper's own MSE/MAE metrics) for the Stage 1
-report: paper-reported vs. our reconstruction vs. classical baselines, on
-ETTh1 across all four forecast horizons.
+Generate comparison figures (paper's own MSE/MAE metrics): paper-reported
+vs. our reconstruction vs. classical baselines vs. the Stage 2 improved
+model (SegRNNTime), on ETTh1 across all four forecast horizons.
 
 Paper and reconstruction numbers are hardcoded below (published/verified
-values -- see docs/stage1_report_draft.md). Baseline numbers (naive,
-seasonal_naive) are read from results/runs.csv if present -- run
-scripts/baselines.py (or the Colab notebook's baselines cell) first to
-populate them; the script degrees gracefully and just omits those bars
-if the CSV has no baseline rows yet.
+values -- see docs/stage1_report_draft.md). Baseline (naive,
+seasonal_naive) and improved-model (SegRNNTime) numbers are read from
+results/runs.csv if present -- the script degrades gracefully and just
+omits series that aren't in the CSV yet.
 
 Usage: python scripts/plot_results.py
 Output: results/figures/mse_comparison.png, results/figures/mae_comparison.png
@@ -35,12 +34,13 @@ RECON = {
 
 RUNS_CSV = os.path.join(os.path.dirname(__file__), '..', 'results', 'runs.csv')
 
-# dataviz skill's validated categorical palette, first 4 slots, fixed order
+# dataviz skill's validated categorical palette, first 5 slots, fixed order
 COLORS = {
     'Paper': '#2a78d6',
     'Reconstruction': '#008300',
     'Naive': '#e87ba4',
     'Seasonal-naive': '#eda100',
+    'Improved': '#1baf7a',
 }
 INK_PRIMARY = '#0b0b0b'
 INK_SECONDARY = '#52514e'
@@ -50,13 +50,14 @@ BASELINE_AXIS = '#c3c2b7'
 SURFACE = '#fcfcfb'
 
 
-def load_baselines():
-    """Read naive/seasonal_naive rows from results/runs.csv, if present.
+def load_runs():
+    """Read naive/seasonal_naive/SegRNNTime rows from results/runs.csv, if present.
 
-    Returns {'naive': {horizon: {'mse':.., 'mae':..}}, 'seasonal_naive': {...}}
-    -- missing entries are simply absent (chart omits those bars).
+    Returns {model_name: {horizon: {'mse':.., 'mae':..}}} for each of
+    naive, seasonal_naive, SegRNNTime -- missing entries are simply absent
+    (chart omits those bars/series).
     """
-    out = {'naive': {}, 'seasonal_naive': {}}
+    out = {'naive': {}, 'seasonal_naive': {}, 'SegRNNTime': {}}
     if not os.path.exists(RUNS_CSV):
         return out
     with open(RUNS_CSV, newline='') as f:
@@ -76,10 +77,10 @@ def load_baselines():
     return out
 
 
-def plot_metric(metric_name, baselines, out_path):
+def plot_metric(metric_name, runs, out_path):
     series = [('Paper', PAPER[metric_name]), ('Reconstruction', RECON[metric_name])]
-    for label, key in [('Naive', 'naive'), ('Seasonal-naive', 'seasonal_naive')]:
-        values = baselines[key]
+    for label, key in [('Naive', 'naive'), ('Seasonal-naive', 'seasonal_naive'), ('Improved', 'SegRNNTime')]:
+        values = runs[key]
         if all(h in values for h in HORIZONS):
             series.append((label, {h: values[h][metric_name] for h in HORIZONS}))
 
@@ -103,11 +104,14 @@ def plot_metric(metric_name, baselines, out_path):
                     f'{h:.3f}', ha='center', va='bottom', fontsize=7.5,
                     color=INK_PRIMARY)
 
+    all_labels = ['Paper', 'Reconstruction', 'Naive', 'Seasonal-naive', 'Improved']
+    missing = [l for l in all_labels if l not in {s[0] for s in series}]
+    subtitle = f' (pending: {", ".join(missing)})' if missing else ''
+
     ax.set_xticks(x)
     ax.set_xticklabels([f'H={h}' for h in HORIZONS], color=INK_SECONDARY)
     ax.set_ylabel(metric_name.upper(), color=INK_SECONDARY)
-    ax.set_title(f'SegRNN on ETTh1 — {metric_name.upper()} vs. paper'
-                 + ('' if n_series > 2 else ' (baselines pending: run scripts/baselines.py)'),
+    ax.set_title(f'SegRNN on ETTh1 — {metric_name.upper()} vs. paper{subtitle}',
                  color=INK_PRIMARY, fontsize=12, loc='left')
 
     ax.yaxis.grid(True, color=GRIDLINE, linewidth=0.8, zorder=0)
@@ -128,10 +132,10 @@ def plot_metric(metric_name, baselines, out_path):
 
 def main():
     os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'results', 'figures'), exist_ok=True)
-    baselines = load_baselines()
+    runs = load_runs()
     fig_dir = os.path.join(os.path.dirname(__file__), '..', 'results', 'figures')
-    plot_metric('mse', baselines, os.path.join(fig_dir, 'mse_comparison.png'))
-    plot_metric('mae', baselines, os.path.join(fig_dir, 'mae_comparison.png'))
+    plot_metric('mse', runs, os.path.join(fig_dir, 'mse_comparison.png'))
+    plot_metric('mae', runs, os.path.join(fig_dir, 'mae_comparison.png'))
 
 
 if __name__ == '__main__':
