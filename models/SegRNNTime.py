@@ -6,17 +6,27 @@ on the original SegRNN path, see docs/data_pipeline_audit.md section 7)
 into the encoder.
 
 Change (only): each input segment's raw values (shape seg_len) are
-concatenated with that segment's mean-pooled calendar feature vector
-(shape mark_dim) before the Linear(w->d)+ReLU projection, so the encoder
-sees *when* each segment occurred, not just its values. Motivation: ETTh1
-has a strong daily/weekly cycle (confirmed by the seasonal-naive baseline
-in docs/stage1_report_draft.md beating plain naive by a wide margin); the
-original architecture has no explicit signal telling the encoder which
-part of that cycle a given input segment belongs to, and must infer it
-purely from the recurrent state. This is a "stronger time-series
-features" improvement (see Final_Project.md's example list) implemented
-as encoder-side conditioning -- future work could similarly feed known
-future calendar features into the PMF decoder's positional embedding.
+concatenated with that segment's calendar feature vector (shape mark_dim,
+taken from the segment's last timestep) before the Linear(w->d)+ReLU
+projection, so the encoder sees *when* each segment occurred, not just its
+values. Motivation: ETTh1 has a strong daily/weekly cycle (confirmed by
+the seasonal-naive baseline in docs/stage1_report_draft.md beating plain
+naive by a wide margin); the original architecture has no explicit signal
+telling the encoder which part of that cycle a given input segment
+belongs to, and must infer it purely from the recurrent state. This is a
+"stronger time-series features" improvement (see Final_Project.md's
+example list) implemented as encoder-side conditioning -- future work
+could similarly feed known future calendar features into the PMF
+decoder's positional embedding.
+
+Note on a design choice that mattered: the first version of this file
+mean-pooled each segment's calendar features instead of taking the last
+timestep. That measurably *hurt* MSE/MAE vs. the plain reconstruction
+(see docs/stage2_report_draft.md). Cause: seg_len=24 for hourly ETTh1
+means each segment spans exactly one full day, so mean-pooling HourOfDay
+-- the feature most likely to carry a useful daily-periodicity signal --
+across a full 24h cycle washes it out to nearly the same constant for
+every segment. Taking the last timestep preserves it instead.
 
 Everything else (GRU encoding, RMF/PMF decoding, normalization) is
 unchanged from models/SegRNN.py -- see docs/architecture_notes.md for the
@@ -102,9 +112,10 @@ class Model(nn.Module):
         # segment values    b,c,s -> bc,n,w
         x_seg = x.reshape(-1, self.seg_num_x, self.seg_len)
 
-        # segment calendar features: mean-pool each segment's timestamps,
-        # b,s,k -> b,n,w,k -> mean over w -> b,n,k -> repeat per channel -> bc,n,k
-        mark_seg = x_mark.reshape(batch_size, self.seg_num_x, self.seg_len, self.mark_dim).mean(dim=2)
+        # segment calendar features: take each segment's last timestep (not a
+        # mean -- see the module docstring for why pooling backfires here),
+        # b,s,k -> b,n,w,k -> last of w -> b,n,k -> repeat per channel -> bc,n,k
+        mark_seg = x_mark.reshape(batch_size, self.seg_num_x, self.seg_len, self.mark_dim)[:, :, -1, :]
         mark_seg = mark_seg.unsqueeze(1).repeat(1, self.enc_in, 1, 1).reshape(-1, self.seg_num_x, self.mark_dim)
 
         # embedding    bc,n,w+k -> bc,n,d
