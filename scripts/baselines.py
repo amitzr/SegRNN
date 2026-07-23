@@ -87,7 +87,13 @@ def build_dataset(args, flag):
         features=args.features,
         target=args.target,
         scale=True,
-        timeenc=0,
+        # timeenc=1 (not 0): this script never reads data_stamp -- it only
+        # needs data_x -- and timeenc=0's code path in data_provider/data_loader.py
+        # calls df_stamp.drop(['date'], 1) with a positional axis arg, which
+        # pandas 2.x removed (TypeError). timeenc=1 takes a different branch
+        # that avoids it. data_provider/ is upstream code this session
+        # doesn't modify, so route around the bug here instead of patching it.
+        timeenc=1,
         freq=args.freq,
     )
 
