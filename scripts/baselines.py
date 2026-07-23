@@ -19,6 +19,14 @@ import csv
 import datetime
 import math
 import os
+import sys
+
+# allow `python scripts/baselines.py` to find the repo-root packages
+# (data_provider, utils) regardless of the current working directory --
+# unlike run_longExp.py, which lives at the repo root itself, this script
+# is one directory down, so Python's default sys.path[0] (this file's own
+# directory) doesn't include them.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
