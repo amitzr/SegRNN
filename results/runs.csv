@@ -1,1 +1,9 @@
 run_id,timestamp,model,dataset,horizon,seq_len,seg_len,d_model,seed,flags,mse,mae,mase,epoch_time_s,params,peak_mem_mb,notes
+naive_ETTh1_96_2026-07-23T00:00:00,2026-07-23T00:00:00,naive,ETTh1,96,720,,,2024,period=24;features=M;seq_len=720,1.2943706,0.7131814,1.7238802,,,,"deterministic baseline, no training"
+seasonal_naive_ETTh1_96_2026-07-23T00:00:00,2026-07-23T00:00:00,seasonal_naive,ETTh1,96,720,,,2024,period=24;features=M;seq_len=720,0.5122251,0.4333027,1.0497745,,,,"deterministic baseline, no training"
+naive_ETTh1_192_2026-07-23T00:00:00,2026-07-23T00:00:00,naive,ETTh1,192,720,,,2024,period=24;features=M;seq_len=720,1.3248803,0.7331008,1.7786274,,,,"deterministic baseline, no training"
+seasonal_naive_ETTh1_192_2026-07-23T00:00:00,2026-07-23T00:00:00,seasonal_naive,ETTh1,192,720,,,2024,period=24;features=M;seq_len=720,0.5807811,0.4691598,1.1415110,,,,"deterministic baseline, no training"
+naive_ETTh1_336_2026-07-23T00:00:00,2026-07-23T00:00:00,naive,ETTh1,336,720,,,2024,period=24;features=M;seq_len=720,1.3299273,0.7459721,1.8146961,,,,"deterministic baseline, no training"
+seasonal_naive_ETTh1_336_2026-07-23T00:00:00,2026-07-23T00:00:00,seasonal_naive,ETTh1,336,720,,,2024,period=24;features=M;seq_len=720,0.6499145,0.5007621,1.2200470,,,,"deterministic baseline, no training"
+naive_ETTh1_720_2026-07-23T00:00:00,2026-07-23T00:00:00,naive,ETTh1,720,720,,,2024,period=24;features=M;seq_len=720,1.3351207,0.7550453,1.8401262,,,,"deterministic baseline, no training"
+seasonal_naive_ETTh1_720_2026-07-23T00:00:00,2026-07-23T00:00:00,seasonal_naive,ETTh1,720,720,,,2024,period=24;features=M;seq_len=720,0.6554053,0.5141218,1.2488451,,,,"deterministic baseline, no training"
