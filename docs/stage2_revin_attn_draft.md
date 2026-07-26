@@ -30,14 +30,33 @@ test is plausible.
 
 **Results:**
 
-*[PLACEHOLDER — fill in from notebook Part 8's output]*
-
 | Horizon | Reconstruction MSE | RevIN MSE | Δ | Reconstruction MAE | RevIN MAE | Δ |
 |---|---|---|---|---|---|---|
-| 96 | 0.3510 | | | 0.3925 | | |
-| 192 | 0.3925 | | | 0.4142 | | |
-| 336 | 0.4233 | | | 0.4327 | | |
-| 720 | 0.4657 | | | 0.4720 | | |
+| 96 | 0.3510 | 0.3673 | +4.6% | 0.3925 | 0.4003 | +2.0% |
+| 192 | 0.3925 | 0.4068 | +3.6% | 0.4142 | 0.4224 | +2.0% |
+| 336 | 0.4232 | 0.4376 | +3.4% | 0.4327 | 0.4397 | +1.6% |
+| 720 | 0.4656 | 0.4801 | +3.1% | 0.4719 | 0.4776 | +1.2% |
+
+**Reading the result:** consistently worse at every horizon, by a larger
+and more uniform margin than either the calendar-feature or attention
+strands — this is not a marginal, seed-noise-scale effect. Two likely
+reasons, both about *this repo's specific* RevIN instantiation rather
+than the technique in general:
+1. **`affine=False`** — this call (`RevIN(self.enc_in, affine=False,
+   subtract_last=False)`, `models/SegRNN.py`) disables RevIN's learnable
+   post-normalization scale/shift. Published uses of RevIN typically
+   enable it, giving the model a way to correct for whatever the raw
+   z-score transform gets wrong; without it, the transform is applied
+   rigidly.
+2. **Full-window mean vs. last value.** SegRNN's default normalization
+   anchors each forecast to the window's *most recent* point — the
+   causally closest, most relevant reference for near-term extrapolation.
+   RevIN (`subtract_last=False` here) instead anchors to the mean of the
+   *entire* 720-hour window, blending in values up to 30 days old. For a
+   task where the decoder's output is added back onto this anchor point
+   (`y = prediction + anchor`), a stale, diluted anchor plausibly hurts
+   more than it helps, even though it's a more "statistically proper"
+   normalization in the abstract.
 
 ---
 
