@@ -117,8 +117,30 @@ from `docs/Pre-precessing.pdf` or `docs/Time-Series Forecasting.pdf`.
 Cheap to test given Part 6 already established the seed-to-seed spread at
 these two horizons.
 
-**Results:** pending — run notebook Part 0c (2 horizons: 336, 720, same
-scope-narrowing as Part 6, same compute-budget reason).
+**Results:**
+
+| Horizon | Reconstruction MSE | Ensemble MSE | Δ | Reconstruction MAE | Ensemble MAE | Δ | seed MSEs | seed std |
+|---|---|---|---|---|---|---|---|---|
+| 336 | 0.4233 | 0.4222 | -0.26% | 0.4327 | 0.4320 | -0.16% | 0.4250, 0.4237, 0.4232 | 0.0009 |
+| 720 | 0.4657 | 0.4659 | +0.04% | 0.4719 | 0.4725 | +0.13% | 0.4659, 0.4744, 0.4656 | 0.0050 |
+
+**Reading the result:** small and horizon-dependent. At H=336 the delta
+(-0.0011 MSE) is close to the same magnitude as the seed-to-seed std
+(0.0009) — using Part 6's own heuristic (`|mean delta| vs std`), this
+lands right at the boundary rather than clearly on either side; a
+plausible small real effect, not a strong one. At H=720 the delta
+(+0.0002) is an order of magnitude smaller than the seed std (0.0050) —
+clearly noise, no effect either way. In both cases, averaging
+*predictions* beats averaging *metrics*: the ensemble MSE is better than
+the mean-of-seeds MSE at both horizons (0.4222 vs 0.4240 mean at H=336;
+0.4659 vs 0.4686 mean at H=720) — expected, since scoring an averaged
+prediction removes each individual model's variance-driven error before
+squaring, while averaging already-squared per-seed errors does not get
+that benefit (Jensen's inequality). So the technique does what it's
+supposed to relative to the naive alternative; it just doesn't move the
+needle much relative to a single reconstruction run here, and what
+movement there is falls inside or right at the edge of ordinary seed
+noise rather than being a clear win.
 
 ---
 
