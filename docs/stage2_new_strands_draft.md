@@ -169,7 +169,31 @@ non-calendar information source (features of the raw series itself) is an
 honest, independent check of whether that earlier finding is
 calendar-specific or a more general property of this architecture/dataset.
 
-**Results:** pending — run notebook Part 0d.
+**Results:**
+
+| Horizon | Reconstruction MSE | ROCKET MSE | Δ | Reconstruction MAE | ROCKET MAE | Δ |
+|---|---|---|---|---|---|---|
+| 96 | 0.3510 | 0.3693 | +5.2% | 0.3925 | 0.4029 | +2.6% |
+| 192 | 0.3925 | 0.3975 | +1.3% | 0.4142 | 0.4203 | +1.5% |
+| 336 | 0.4233 | 0.4603 | +8.7% | 0.4327 | 0.4611 | +6.6% |
+| 720 | 0.4657 | 0.4650 | -0.15% | 0.4719 | 0.4785 | +1.4% |
+
+**Reading the result:** worse at three of four horizons, essentially flat
+at the fourth (H=720's -0.15% MSE is noise-scale, but its MAE still
+worsens +1.4%, so even the "best" horizon isn't a real win). H=336 is the
+worst single-horizon regression of any Stage 2 strand tested across this
+whole project (+8.7% MSE, +6.6% MAE — bigger than Attention's +5.1% at
+the same horizon, bigger than RevIN's worst point of +4.6%). This matches
+the prediction made before running it (see Discussion below, and this
+strand's own rationale above): ROCKET repeats the exact "inject extra
+information into `h_n`" pattern that calendar features and attention both
+already used, with a third, unrelated information source now producing
+the same outcome. That's no longer a coincidence limited to calendar
+data — three independent information sources injected into the same
+bottleneck (calendar timestamps, attention-derived context, and now
+fixed random-convolution features of the raw window) have all made
+things worse. The pattern looks like it's about *where* the information
+goes, not *what* the information is.
 
 ---
 
