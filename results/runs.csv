@@ -15,3 +15,15 @@ SegRNNTime_ETTh1_96_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,96,
 SegRNNTime_ETTh1_192_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,192,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.397,0.425,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)
 SegRNNTime_ETTh1_336_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,336,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.424,0.434,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)
 SegRNNTime_ETTh1_720_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,720,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.476,0.479,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)
+SegRNN_ETTh1_96_dm256_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,96,720,24,256,2024,seg_len=24;d_model=256,0.3557,,,,408728,,"efficiency sweep: d_model=256"
+SegRNN_ETTh1_96_dm128_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,96,720,24,128,2024,seg_len=24;d_model=128,0.3677,,,,106072,,"efficiency sweep: d_model=128"
+SegRNN_ETTh1_96_dm64_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,96,720,24,64,2024,seg_len=24;d_model=64,0.3848,,,,28472,,"efficiency sweep: d_model=64"
+SegRNN_ETTh1_192_dm256_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,192,720,24,256,2024,seg_len=24;d_model=256,0.3956,,,,409240,,"efficiency sweep: d_model=256"
+SegRNN_ETTh1_192_dm128_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,192,720,24,128,2024,seg_len=24;d_model=128,0.4007,,,,106328,,"efficiency sweep: d_model=128"
+SegRNN_ETTh1_192_dm64_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,192,720,24,64,2024,seg_len=24;d_model=64,0.4219,,,,28600,,"efficiency sweep: d_model=64"
+SegRNN_ETTh1_336_dm256_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,336,720,24,256,2024,seg_len=24;d_model=256,0.4248,,,,410008,,"efficiency sweep: d_model=256"
+SegRNN_ETTh1_336_dm128_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,336,720,24,128,2024,seg_len=24;d_model=128,0.4304,,,,106712,,"efficiency sweep: d_model=128"
+SegRNN_ETTh1_336_dm64_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,336,720,24,64,2024,seg_len=24;d_model=64,0.4445,,,,28792,,"efficiency sweep: d_model=64"
+SegRNN_ETTh1_720_dm256_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,720,720,24,256,2024,seg_len=24;d_model=256,0.4881,,,,412056,,"efficiency sweep: d_model=256"
+SegRNN_ETTh1_720_dm128_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,720,720,24,128,2024,seg_len=24;d_model=128,0.4915,,,,107736,,"efficiency sweep: d_model=128"
+SegRNN_ETTh1_720_dm64_2026-07-26T01:00:00,2026-07-26T01:00:00,SegRNN,ETTh1,720,720,24,64,2024,seg_len=24;d_model=64,0.495,,,,29304,,"efficiency sweep: d_model=64"
