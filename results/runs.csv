@@ -7,3 +7,11 @@ naive_ETTh1_336_2026-07-23T00:00:00,2026-07-23T00:00:00,naive,ETTh1,336,720,,,20
 seasonal_naive_ETTh1_336_2026-07-23T00:00:00,2026-07-23T00:00:00,seasonal_naive,ETTh1,336,720,,,2024,period=24;features=M;seq_len=720,0.6499145,0.5007621,1.2200470,,,,"deterministic baseline, no training"
 naive_ETTh1_720_2026-07-23T00:00:00,2026-07-23T00:00:00,naive,ETTh1,720,720,,,2024,period=24;features=M;seq_len=720,1.3351207,0.7550453,1.8401262,,,,"deterministic baseline, no training"
 seasonal_naive_ETTh1_720_2026-07-23T00:00:00,2026-07-23T00:00:00,seasonal_naive,ETTh1,720,720,,,2024,period=24;features=M;seq_len=720,0.6554053,0.5141218,1.2488451,,,,"deterministic baseline, no training"
+SegRNN_ETTh1_96_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNN,ETTh1,96,720,24,512,2024,seg_len=24;d_model=512,0.3510488,0.3925433,,,,,reconstruction
+SegRNN_ETTh1_192_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNN,ETTh1,192,720,24,512,2024,seg_len=24;d_model=512,0.3924745,0.4141848,,,,,reconstruction
+SegRNN_ETTh1_336_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNN,ETTh1,336,720,24,512,2024,seg_len=24;d_model=512,0.4232968,0.4327377,,,,,reconstruction
+SegRNN_ETTh1_720_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNN,ETTh1,720,720,24,512,2024,seg_len=24;d_model=512,0.4657091,0.4719974,,,,,reconstruction
+SegRNNTime_ETTh1_96_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,96,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.363,0.400,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)
+SegRNNTime_ETTh1_192_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,192,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.397,0.425,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)
+SegRNNTime_ETTh1_336_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,336,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.424,0.434,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)
+SegRNNTime_ETTh1_720_2026-07-26T00:00:00,2026-07-26T00:00:00,SegRNNTime,ETTh1,720,720,24,512,2024,seg_len=24;d_model=512;mark_dim=4;hour_emb_dim=16;weekday_emb_dim=8,0.476,0.479,,,,,improved: decoder-side hour+weekday embedding in PE (attempt 4)

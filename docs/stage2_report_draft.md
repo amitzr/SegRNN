@@ -96,37 +96,101 @@ All four attempts, MSE, side by side:
 
 | Horizon | Reconstruction | 1: mean-pool | 2: last-step raw | 3: hour embed (encoder) | 4: hour+weekday embed (decoder) |
 |---|---|---|---|---|---|
-| 96 | 0.351 | 0.355 | 0.354 | 0.353 | *pending* |
-| 192 | 0.392 | 0.397 | 0.396 | 0.400 | *pending* |
-| 336 | 0.423 | *n/a* | 0.434 | 0.432 | *pending* |
-| 720 | 0.466 | *n/a* | 0.491 | 0.484 | *pending* |
+| 96 | 0.351 | 0.355 | 0.354 | 0.353 | 0.363 |
+| 192 | 0.392 | 0.397 | 0.396 | 0.400 | 0.397 |
+| 336 | 0.423 | *n/a* | 0.434 | 0.432 | 0.424 |
+| 720 | 0.466 | *n/a* | 0.491 | 0.484 | 0.476 |
 
-*[Fill in attempt 4's column once the notebook's Part 4 finishes; update
-the MAE table the same way. n/a = that attempt was superseded before
-running all four horizons.]*
+MAE:
+
+| Horizon | Reconstruction | 2: last-step raw | 3: hour embed (encoder) | 4: hour+weekday embed (decoder) |
+|---|---|---|---|---|
+| 96 | 0.393 | 0.395 | 0.396 | 0.400 |
+| 192 | 0.414 | 0.424 | 0.425 | 0.425 |
+| 336 | 0.433 | 0.441 | 0.442 | 0.434 |
+| 720 | 0.472 | 0.490 | 0.486 | 0.479 |
+
+% change vs. reconstruction, MSE, attempts 2/3/4:
+
+| Horizon | 2: last-step raw | 3: hour embed (encoder) | 4: hour+weekday embed (decoder) |
+|---|---|---|---|
+| 96 | +0.9% | +0.6% | +3.4% |
+| 192 | +1.0% | +2.0% | +1.3% |
+| 336 | +2.6% | +2.1% | +0.2% |
+| 720 | +5.4% | +3.9% | +2.1% |
+
+n/a = that attempt was superseded before running all four horizons (attempt 1
+was abandoned after H=96/192 confirmed the pooling bug).
+
+**Reading the trend:** attempt 4 is the closest of the four to parity —
+nearly dead-even at H=336 (+0.2%, essentially noise) and the smallest gap
+of any attempt at H=720 (+2.1%, vs. +5.4% for attempt 2 and +3.9% for
+attempt 3). Moving the signal out of the encoder did measurably reduce
+the damage, consistent with the bottleneck hypothesis — but it never
+actually crosses over into an improvement at any horizon. H=96 is
+attempt 4's worst relative result (+3.4%), the opposite pattern from
+attempts 2/3 (which were closest to parity at H=96 and worst at H=720) —
+plausibly because a short horizon has few decode segments (`m=4` at
+H=96 vs. `m=30` at H=720), so the two new embedding tables have very
+little data per forward pass to learn from at that setting, while a long
+horizon gives them more decode steps to learn across, at the cost of the
+encoder-bottleneck pressure attempts 2/3 suffered from.
 
 ---
 
 ## 6. Discussion
 
-*[Draft after attempt 4's run. Should cover:]*
-- Whether moving to the decoder (bypassing the bottleneck) finally
-  recovered an improvement, or whether even the paper's own
-  highest-leverage mechanism can't accommodate this extra signal on
-  ETTh1 — in which case the honest conclusion is that SegRNN's PMF
-  decoder's positional embedding is already doing what it needs to for
-  this dataset, and explicit calendar features are redundant with what
-  `rp`/`cp` (learned, data-driven) already capture implicitly.
-- The four-attempt arc as a worked example of debugging a negative
-  result properly: first ruling out an implementation bug (pooling vs.
-  seasonal period), then a representational-capacity issue (raw scalar
-  vs. embedding, directly informed by course material), then an
-  architectural-placement issue (encoder bottleneck vs. decoder
-  side-channel, also informed by course material) — three genuinely
-  different hypotheses, each tested cleanly in isolation.
-- What this suggests generally: for an architecture that already has a
-  demonstrated high-leverage side-channel (PE), adding new information
-  there is a better first move than adding it to the main representation
-  path, regardless of how well-represented the new information is.
-- Limitations: only tested on ETTh1, only the `pmf` decode path, only
-  `channel_id=1`, embedding dimensions not swept.
+**What worked:** nothing beat the reconstruction outright — this is a
+negative result across all four attempts. But the *arc* across attempts
+worked, in the sense that each iteration was a distinct, falsifiable
+hypothesis about *why* the previous one failed, and each test actually
+moved the result in the predicted direction:
+- Attempt 1 → 2 tested whether mean-pooling was destroying the signal
+  (it was — `seg_len` happened to equal the seasonal period). Fixing it
+  didn't recover an improvement, but ruled out an implementation bug as
+  the explanation.
+- Attempt 2 → 3 tested whether representational capacity was the issue
+  (raw scalar vs. learned embedding for a 24-category feature), per
+  `docs/DL_for_TS.pdf`'s explicit teaching on this exact distinction.
+  Modest improvement at longer horizons, but still net negative.
+- Attempt 3 → 4 tested whether the *architectural location* was the
+  issue (encoder bottleneck vs. decoder side-channel), per the same
+  lecture's Attention slide. This produced the largest improvement of
+  the three fixes — attempt 4 is within +0.2% of the reconstruction at
+  H=336 and has the smallest gap of any attempt at H=720 — without
+  crossing over into an actual win.
+
+**What this suggests:** SegRNN's PMF decoder positional embedding
+(`rp`/`cp`) is already a *learned, data-driven* per-segment code — during
+training it's free to arrange itself however best predicts the target,
+unconstrained by what a human labels "hour" or "weekday." It's plausible
+`rp` already recovers most of the useful periodic structure implicitly
+(the model sees the same 24-hour, 7-day cycles repeat across ~7800
+training windows), and the explicit calendar embeddings are largely
+redundant with what `rp` already learned — while still adding two new
+sets of parameters that have to be fit from the same amount of data,
+which is a real cost even when the added signal isn't harmful. This is
+consistent with attempt 4's H=96 result being its *worst* relative
+outcome (+3.4%): at H=96, `m=4` decode segments per sample means the new
+embedding tables get very little gradient signal per batch to learn from,
+so their cost (extra parameters, harder optimization) shows up more
+than any benefit; at H=336 (`m=14`) there's enough decode steps for them
+to earn their keep, roughly breaking even.
+
+**Practical takeaway:** for an architecture that already has a
+demonstrated high-leverage side-channel (PE, per the paper's own
+Table V ablation), adding new information there is a better first move
+than adding it to the main representation path — this held up
+empirically (attempt 4 clearly closer to parity than 2 or 3) even though
+it didn't fully pay off here. The three-hypothesis debugging arc (bug →
+representation → architecture) is arguably the most transferable lesson:
+a plausible-sounding feature-engineering idea can fail for reasons that
+have nothing to do with whether the underlying information is useful.
+
+**Limitations:** only tested on ETTh1 (a single dataset with `enc_in=7`);
+only the `pmf` decode path (`rmf` was never compatible with the
+encoder-side attempts and wasn't revisited for the decoder-side one);
+only `channel_id=1`; `hour_emb_dim=16`/`weekday_emb_dim=8` were picked
+once, not swept; only day-of-week and hour-of-day were tried as decoder
+features (day-of-month/day-of-year were dropped after attempt 2, on the
+assumption their lower cyclicality made them less promising — untested).
