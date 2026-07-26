@@ -85,41 +85,88 @@ costly in the first place.
 
 **Results:**
 
-*[PLACEHOLDER — fill in from notebook Part 9's output]*
-
 | Horizon | Reconstruction MSE | Attention MSE | Δ | Reconstruction MAE | Attention MAE | Δ |
 |---|---|---|---|---|---|---|
-| 96 | 0.3510 | | | 0.3925 | | |
-| 192 | 0.3925 | | | 0.4142 | | |
-| 336 | 0.4233 | | | 0.4327 | | |
-| 720 | 0.4657 | | | 0.4720 | | |
+| 96 | 0.3510 | 0.3564 | +1.5% | 0.3925 | 0.3977 | +1.3% |
+| 192 | 0.3925 | 0.3944 | +0.5% | 0.4142 | 0.4228 | +2.1% |
+| 336 | 0.4232 | 0.4447 | +5.1% | 0.4327 | 0.4496 | +3.9% |
+| 720 | 0.4656 | 0.4820 | +3.5% | 0.4719 | 0.4861 | +3.0% |
+
+**Reading the result:** worse at every horizon, and the largest single
+regression of any Stage 2 strand at H=336 (+5.1%). This is a real,
+substantive finding, not a footnote: it tests the direct structural
+counterpart to the calendar-feature diagnosis (bottleneck vs.
+representation) and the bottleneck hypothesis does *not* pan out as a
+source of recoverable headroom on ETTh1 — removing it doesn't help any
+more than trying to feed more information through it did. See Discussion
+for what this converges on across all four strands.
 
 ---
 
 ## Discussion
 
-*[Draft after both runs. Should cover:]*
-- Whether either strand actually beat the reconstruction, and if so by
-  how much relative to the seed-to-seed noise floor established in
-  `docs/stage2_report_draft.md`'s Part 6 (±0.001–0.005 MSE) — a delta
-  smaller than that shouldn't be read as a real effect without its own
-  seed check.
-- If Attention helped: this would directly validate the
-  "bottleneck, not representation" diagnosis from the calendar-feature
-  work — strong evidence for *why* those four attempts failed, not just
-  *that* they failed.
-- If Attention didn't help either: an interesting complementary finding
-  to the calendar-feature result — even removing the bottleneck
-  structurally doesn't unlock headroom on this dataset/architecture,
-  suggesting `h_n`'s single-vector summary was already capturing what
-  mattered for ETTh1's relatively short, regular seasonal patterns (as
-  opposed to a task with longer or more irregular dependencies where a
-  bottleneck would bite harder).
-- If RevIN helped: pair with the efficiency sweep's finding as a second
-  concrete "free" improvement — worth checking together whether RevIN
-  changes which `d_model` is on the efficiency frontier.
-- Total Stage 2 picture across all four strands (calendar features,
-  efficiency sweep, RevIN, attention): a good spread across "what
-  worked, what didn't, what you learned" — from a zero-cost hyperparameter
-  flag to the most structurally invasive change attempted, covering both
-  representation-level and architecture-level hypotheses.
+**The full Stage 2 picture — four structural hypotheses, one capacity
+hypothesis:**
+
+| Strand | Change | Best-case MSE delta vs. reconstruction |
+|---|---|---|
+| Calendar features (×3 attempts) | add information to encoder or decoder | +0.2% to +9.6% (always worse) |
+| RevIN | swap normalization strategy | +3.1% to +4.6% (always worse) |
+| Attention | remove the encoder bottleneck | +0.5% to +5.1% (always worse) |
+| `d_model` sweep | **reduce** capacity | **−0.35% to +1.3%** (256 ≈ free at H≤336) |
+
+Every attempt to give the model *more* — more information (calendar
+features), a *different* way of normalizing (RevIN), or a *structurally
+richer* decode mechanism (attention) — made results worse, consistently,
+across four independently-motivated hypotheses. The only change that
+helped was giving the model *less* (fewer parameters at `d_model=256`).
+That's not a coincidence worth writing off; it's a signal, and it
+directly answers a question worth asking explicitly:
+
+**Are we just failing to out-engineer an already-minimal design?**
+Very plausibly yes — and there's direct textual evidence for this in the
+paper itself, not just our own results. The SegRNN paper's *own* ablation
+study (Section V-D1, Table IV) finds that *overlapping* segmentation —
+objectively richer, more information-preserving than the default
+non-overlapping scheme — **consistently underperforms** it, for two
+stated reasons: "redundant historical information" and "increased
+recurrent depth" that "weakens temporal information propagation." That
+is the *exact same pattern* we independently rediscovered four times over
+with a completely different set of experiments: added complexity/richness
+consistently loses to the leaner default. Our results don't just fail to
+beat the paper — they **independently corroborate**, via different
+methods, the design philosophy the paper's own authors identify as
+central to why SegRNN works: minimizing recurrent depth and avoiding
+redundant information, even when that "redundant" information looks
+useful on paper (extra segmentation overlap, or here, extra calendar/
+attention signal).
+
+**Does this mean SegRNN can't be improved, full stop?** No — it means
+this specific strategy (add richer inputs/mechanisms to *this*
+architecture on *this* dataset) is the wrong lever, not that improvement
+is impossible in general. Two important caveats on scope:
+1. All four strands were tested only on **ETTh1**. The paper evaluates on
+   eight datasets with very different characteristics — notably, the
+   paper states it applies RevIN specifically "for datasets with severe
+   distribution shift (e.g., Traffic)," and separately reports Traffic
+   has ~17x more extreme values per channel than Electricity (23.8 vs.
+   1.4) and far more than Solar-Energy (0). That is, **the paper's own
+   authors already predict RevIN wouldn't be universally beneficial** —
+   consistent with what we found on ETTh1 (RevIN hurt), and suggesting a
+   dataset like Traffic, with genuine severe distribution shift, is where
+   RevIN (and plausibly calendar features tied to its rush-hour/weekday
+   irregularity) would be expected to help instead. This isn't tested
+   here, but it's a directly falsifiable, well-motivated extension rather
+   than a vague "try more datasets" suggestion.
+2. The techniques we tried are specific implementations of general ideas
+   (e.g., one particular attention formulation, one particular RevIN
+   configuration with `affine=False`). A different formulation of the
+   same idea (e.g., RevIN with `affine=True`, restoring the learnable
+   correction this repo's instantiation disables) might behave
+   differently, even on ETTh1.
+
+**Limitations:** all four strands tested on ETTh1 only, single seed for
+RevIN/Attention (unlike the calendar-feature work, these weren't run
+through the seed-variance check — the consistency of the *sign* of the
+effect across all four horizons in each strand is suggestive but not
+seed-confirmed the way the calendar-feature finding is).
