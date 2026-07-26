@@ -6,32 +6,45 @@ on the original SegRNN path, see docs/data_pipeline_audit.md section 7)
 into the encoder.
 
 Change (only): each input segment's raw values (shape seg_len) are
-concatenated with that segment's calendar feature vector (shape mark_dim,
-taken from the segment's last timestep) before the Linear(w->d)+ReLU
-projection, so the encoder sees *when* each segment occurred, not just its
-values. Motivation: ETTh1 has a strong daily/weekly cycle (confirmed by
-the seasonal-naive baseline in docs/stage1_report_draft.md beating plain
-naive by a wide margin); the original architecture has no explicit signal
-telling the encoder which part of that cycle a given input segment
-belongs to, and must infer it purely from the recurrent state. This is a
-"stronger time-series features" improvement (see Final_Project.md's
-example list) implemented as encoder-side conditioning -- future work
-could similarly feed known future calendar features into the PMF
-decoder's positional embedding.
+concatenated with (a) an embedding of that segment's hour-of-day
+(nn.Embedding(24, hour_emb_dim), looked up from the segment's last
+timestep) and (b) its remaining calendar features (day-of-week,
+day-of-month, day-of-year, also last-timestep, kept as raw scalars) --
+before the Linear(w+hour_emb_dim+3 -> d)+ReLU projection. Motivation:
+ETTh1 has a strong daily/weekly cycle (confirmed by the seasonal-naive
+baseline in docs/stage1_report_draft.md beating plain naive by a wide
+margin); the original architecture has no explicit signal telling the
+encoder which part of that cycle a given input segment belongs to, and
+must infer it purely from the recurrent state.
 
-Note on a design choice that mattered: the first version of this file
-mean-pooled each segment's calendar features instead of taking the last
-timestep. That measurably *hurt* MSE/MAE vs. the plain reconstruction
-(see docs/stage2_report_draft.md). Cause: seg_len=24 for hourly ETTh1
-means each segment spans exactly one full day, so mean-pooling HourOfDay
--- the feature most likely to carry a useful daily-periodicity signal --
-across a full 24h cycle washes it out to nearly the same constant for
-every segment. Taking the last timestep preserves it instead.
+Design grounded in docs/DL_for_TS.pdf (course lecture), "Include the year
+and month as predictor variables" / "Improved Model" / "Embedding Layer":
+the taught pattern for injecting a calendar feature is to route the
+cyclical/categorical part (there: month, 12 categories) through a learned
+Embedding, and only treat genuinely linear parts (there: year) as raw
+scalars -- not to concatenate every calendar feature as a raw number.
+Applied here: hour-of-day (24 categories, the dominant daily-cycle driver
+per the seasonal-naive baseline) gets the Embedding; day-of-week/month/
+year stay raw, same as the previous attempt.
 
-Everything else (GRU encoding, RMF/PMF decoding, normalization) is
-unchanged from models/SegRNN.py -- see docs/architecture_notes.md for the
-full block-by-block mapping, which still applies here except for the
-segment embedding step described above.
+Two earlier, less-grounded attempts are recorded in
+docs/stage2_report_draft.md as negative results, both concatenating
+HourOfDay as a single raw continuous scalar (in [-0.5, 0.5]) instead of
+embedding it -- giving the network very little room to represent 24
+distinct, non-linearly-related hour identities from one number:
+1. Mean-pooling each segment's calendar features. seg_len=24 for hourly
+   ETTh1 means each segment spans exactly one full day, so mean-pooling
+   HourOfDay across a full 24h cycle washes it out to nearly the same
+   constant for every segment, destroying the signal. Measurably *hurt*
+   MSE/MAE vs. the plain reconstruction.
+2. Last-timestep raw scalar (no pooling issue, but still just one
+   continuous number for a 24-way categorical quantity). Also
+   consistently *hurt* MSE/MAE, worsening with horizon.
+
+Everything else (GRU encoding, PMF decoding, normalization) is unchanged
+from models/SegRNN.py -- see docs/architecture_notes.md for the full
+block-by-block mapping, which still applies here except for the segment
+embedding step described above.
 '''
 
 import torch
@@ -55,6 +68,14 @@ class Model(nn.Module):
         self.channel_id = configs.channel_id
         self.revin = configs.revin
         self.mark_dim = configs.mark_dim  # width of the per-timestep calendar feature vector
+        self.hour_emb_dim = configs.hour_emb_dim
+
+        # Assumes utils.timefeatures's hourly-frequency column order:
+        # [HourOfDay, DayOfWeek, DayOfMonth, DayOfYear] -- column 0 is the
+        # one routed through the embedding below. Hourly-ETT-specific by
+        # design (see module docstring); a different --freq would need a
+        # different column index here.
+        assert self.mark_dim >= 1, "SegRNNTime needs at least an HourOfDay column in mark_dim"
 
         assert self.rnn_type in ['rnn', 'gru', 'lstm']
         # rmf is not supported here: its recursive step re-embeds a predicted
@@ -66,9 +87,14 @@ class Model(nn.Module):
 
         self.seg_num_x = self.seq_len//self.seg_len
 
+        # hour-of-day (24 categories) gets a learned embedding, per
+        # docs/DL_for_TS.pdf's "embed the cyclical/categorical feature"
+        # pattern; the remaining mark_dim-1 calendar features stay raw.
+        self.hour_embedding = nn.Embedding(24, self.hour_emb_dim)
+
         # build model -- only this Linear's input width differs from SegRNN.py
         self.valueEmbedding = nn.Sequential(
-            nn.Linear(self.seg_len + self.mark_dim, self.d_model),
+            nn.Linear(self.seg_len + self.hour_emb_dim + (self.mark_dim - 1), self.d_model),
             nn.ReLU()
         )
 
@@ -114,12 +140,21 @@ class Model(nn.Module):
 
         # segment calendar features: take each segment's last timestep (not a
         # mean -- see the module docstring for why pooling backfires here),
-        # b,s,k -> b,n,w,k -> last of w -> b,n,k -> repeat per channel -> bc,n,k
+        # b,s,k -> b,n,w,k -> last of w -> b,n,k
         mark_seg = x_mark.reshape(batch_size, self.seg_num_x, self.seg_len, self.mark_dim)[:, :, -1, :]
-        mark_seg = mark_seg.unsqueeze(1).repeat(1, self.enc_in, 1, 1).reshape(-1, self.seg_num_x, self.mark_dim)
 
-        # embedding    bc,n,w+k -> bc,n,d
-        x_emb = self.valueEmbedding(torch.cat([x_seg, mark_seg], dim=-1))
+        # HourOfDay (column 0) is continuous in [-0.5, 0.5] (utils/timefeatures.py's
+        # HourOfDay = hour/23.0 - 0.5); invert it back to an integer 0-23
+        # bucket and look up its embedding, per the module docstring.
+        hour_idx = torch.clamp(torch.round((mark_seg[..., 0] + 0.5) * 23), 0, 23).long()  # b,n
+        hour_emb = self.hour_embedding(hour_idx)  # b,n,hour_emb_dim
+        mark_feat = torch.cat([hour_emb, mark_seg[..., 1:]], dim=-1)  # b,n,hour_emb_dim+mark_dim-1
+
+        # repeat per channel -> bc,n,hour_emb_dim+mark_dim-1
+        mark_feat = mark_feat.unsqueeze(1).repeat(1, self.enc_in, 1, 1).reshape(-1, self.seg_num_x, mark_feat.size(-1))
+
+        # embedding    bc,n,w+hour_emb_dim+mark_dim-1 -> bc,n,d
+        x_emb = self.valueEmbedding(torch.cat([x_seg, mark_feat], dim=-1))
 
         # encoding
         if self.rnn_type == "lstm":

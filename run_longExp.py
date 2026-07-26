@@ -42,6 +42,7 @@ parser.add_argument('--channel_id', type=int, default=1, help='Whether to enable
 # vector from utils/timefeatures.py -- 4 for hourly data (ETTh1/ETTh2/Electricity),
 # unused by every other model.
 parser.add_argument('--mark_dim', type=int, default=4, help='SegRNNTime: calendar feature width')
+parser.add_argument('--hour_emb_dim', type=int, default=16, help='SegRNNTime: hour-of-day embedding width')
 
 # DLinear
 #parser.add_argument('--individual', action='store_true', default=False, help='DLinear: a linear layer for each variate(channel) individually')
