@@ -5,8 +5,7 @@ calendar-feature work (`docs/stage2_report_draft.md`), the efficiency
 sweep (`docs/stage2_efficiency_draft.md`), and RevIN/Attention
 (`docs/stage2_revin_attn_draft.md`). Sources: notebook Parts 0a–0d,
 `data_provider/data_loader.py`, `models/SegRNNRocket.py`,
-`results/runs.csv`. **Results tables below are placeholders — filled in
-after Parts 0a–0d are run on Colab.**
+`results/runs.csv`.
 
 Each strand is tested independently against the same reconstruction
 baseline used throughout (`RECON_BASELINE` in the notebook), not stacked
@@ -96,8 +95,67 @@ read informally, off a "knee" in an accuracy-vs-params plot. AIC/BIC put a
 number on the same trade-off and can disagree with that informal read —
 worth knowing either way, and free to check.
 
-**Results:** pending — run notebook Part 0b (needs `results/runs.csv` to
-already have the Part 7 sweep rows, which it does).
+**Results:**
+
+| Horizon | d_model | MSE | Params (k) | n | AIC | BIC |
+|---|---|---|---|---|---|---|
+| 96 | 512 | 0.3510 | 1,603,864 | 1,871,520 | 1,248,565 | 21,204,260 |
+| 96 | 256 | 0.3557 | 408,728 | 1,871,520 | -1,117,074 | 3,968,427 |
+| 96 | 128 | 0.3677 | 106,072 | 1,871,520 | -1,660,289 | -340,514 |
+| 96 | 64 | 0.3848 | 28,472 | 1,871,520 | **-1,730,417** | **-1,376,161** |
+| 192 | 512 | 0.3925 | 1,604,888 | 3,614,016 | -170,354 | 20,854,208 |
+| 192 | 256 | 0.3956 | 409,240 | 3,614,016 | -2,532,984 | 2,828,195 |
+| 192 | 128 | 0.4007 | 106,328 | 3,614,016 | **-3,092,514** | -1,699,582 |
+| 192 | 64 | 0.4219 | 28,600 | 3,614,016 | -3,061,649 | **-2,686,979** |
+| 336 | 512 | 0.4233 | 1,606,424 | 5,985,840 | -1,933,069 | 19,922,180 |
+| 336 | 256 | 0.4248 | 410,008 | 5,985,840 | -4,304,682 | 1,273,439 |
+| 336 | 128 | 0.4304 | 106,712 | 5,985,840 | **-4,832,880** | -3,381,073 |
+| 336 | 64 | 0.4445 | 28,792 | 5,985,840 | -4,795,766 | **-4,404,054** |
+| 720 | 512 | 0.4657 | 1,610,520 | 10,891,440 | -5,102,134 | 17,772,867 |
+| 720 | 256 | 0.4881 | 412,056 | 10,891,440 | -6,987,610 | -1,134,977 |
+| 720 | 128 | 0.4915 | 107,736 | 10,891,440 | -7,520,645 | -5,990,418 |
+| 720 | 64 | 0.4950 | 29,304 | 10,891,440 | **-7,600,226** | **-7,184,007** |
+
+(bold = the criterion's pick for that horizon; lower AIC/BIC is better)
+
+Which criterion prefers which `d_model`, per horizon:
+
+| Horizon | MSE picks | AIC picks | BIC picks |
+|---|---|---|---|
+| 96 | 512 | 64 | 64 |
+| 192 | 512 | 128 | 64 |
+| 336 | 512 | 128 | 64 |
+| 720 | 512 | 64 | 64 |
+
+**Reading the result:** AIC and BIC both reject the paper's default
+`d_model=512` outright — not once, at any horizon, does either criterion
+prefer it, despite it having the lowest MSE every time. More strikingly,
+**neither criterion ever picks `d_model=256`** either, the value
+`docs/stage2_efficiency_draft.md` read informally as the practical
+"knee" in the accuracy-vs-params curve. AIC/BIC push further than that
+informal read: they land on 64 or 128 every time. BIC is the more
+extreme of the two — it picks the smallest available option (`64`) at
+*every* horizon, because its penalty (`k·ln(n)`) is far harsher than
+AIC's (`2k`) once `n` is in the millions (`ln(n) ≈ 14–16` here). AIC is
+more discriminating: it splits between 64 (H=96, H=720) and 128 (H=192,
+H=336), essentially trading off the small remaining accuracy gap against
+the parameter cost at each horizon individually rather than defaulting
+to the floor every time.
+
+**A caveat that matters more than the exact break-even points:** `n`
+here is total scalar predictions (test windows × horizon × channels),
+which overstates the number of *independent* observations — adjacent
+windows overlap almost entirely (shifted by one timestep out of
+`seq_len=720`), and the seven channels aren't independent draws either.
+A more defensible `n` would be smaller. Since AIC/BIC's accuracy term
+scales with `n` while the parameter penalty doesn't, a smaller, more
+honest `n` would shrink the accuracy term's influence *relative to* the
+parameter penalty — pushing the verdict even further toward small
+`d_model`, not back toward 512 or 256. So the inflated `n` used here, if
+anything, has been generous to the larger models; the qualitative
+conclusion (formally, complexity is punished hard) is robust to that
+criticism even though the exact horizon-by-horizon 64-vs-128 split
+shouldn't be read too precisely.
 
 ---
 
@@ -199,13 +257,58 @@ goes, not *what* the information is.
 
 ## Discussion
 
-To be written once all four strands have real results. If the pattern from
-`docs/stage2_revin_attn_draft.md` holds (every "add information/richness"
-strand regressed, only "reduce capacity" helped), the expected prior is:
-Yeo-Johnson and ROCKET regress or are neutral (both add/reshape
-information the model has to accommodate), ensembling is a coin flip
-(averaging noise across seeds should help a little regardless of the
-underlying architecture question), and AIC/BIC either confirms or
-sharpens the `d_model=256` finding rather than overturning it. Worth
-stating as a prediction now, before the runs happen, precisely so it's
-falsifiable rather than written after the fact.
+**Checking the prediction made before running anything** (stated above,
+before results existed, precisely so it would be falsifiable): three
+parts held, one didn't.
+
+- ROCKET regresses — **confirmed**, and more decisively than expected
+  (worst single-horizon regression of any strand in the whole project).
+- Ensembling is a coin flip — **confirmed**: a small, borderline-noise
+  effect at one horizon, clean noise at the other.
+- AIC/BIC "confirms or sharpens" the `d_model=256` finding — **wrong**.
+  It doesn't sharpen 256, it bypasses it entirely: both criteria prefer
+  64 or 128 at every horizon, never 256. The prediction assumed AIC/BIC
+  would land near the same answer as the informal "knee" read; instead
+  they disagree with it, in the same direction (favor less capacity) but
+  further than expected.
+- Yeo-Johnson regresses or is neutral — **wrong on MSE, right on MAE**.
+  It's the one strand this document got backwards on the metric that
+  matters most for comparing against the paper.
+
+**How this fits the wider Stage 2 picture.** `docs/stage2_revin_attn_draft.md`
+found a clean pattern across the first four strands: every attempt to
+give the model *more* (calendar features, RevIN's richer normalization,
+attention's bottleneck removal) made things worse; only *reducing*
+capacity (`d_model` sweep) helped. ROCKET extends that pattern to a third
+independent information source injected the same way (into `h_n`) — same
+outcome, reinforcing that the failure mode is structural (*where* the
+information goes), not specific to calendar data or to any one
+information source. AIC/BIC, applied to the one strand that *did* help,
+turns out to agree with the "less is more" reading even more strongly
+than the original analysis did — it doesn't just ratify `d_model=256` as
+a reasonable compromise, it argues the paper's whole capacity budget at
+`d_model=512` is hard to justify formally, at any horizon.
+
+Ensembling and Yeo-Johnson are the two strands that don't fit that
+add/reduce axis at all — neither changes what the model can represent.
+Ensembling reduces prediction *variance* without touching the model, and
+behaved exactly like a variance-reduction technique should: a small,
+mostly noise-scale effect, present but not dramatic given only 3 seeds.
+Yeo-Johnson changes the *distribution* of the input, not the model's
+capacity or the information available to it — and it's the only strand
+in this entire project (across both this document and
+`docs/stage2_revin_attn_draft.md`) that improves the paper's headline
+metric (MSE) at every horizon. That its MAE gets worse at the same time
+is a real trade-off, not a contradiction: it's a different kind of lever
+than everything else tested (preprocessing, not architecture or
+capacity), and the two metrics respond to it differently because they
+weight errors differently. Worth flagging as the strongest positive
+result in the report, with the caveat that (unlike the calendar-feature
+finding) it hasn't yet been checked for seed variance.
+
+**Limitations:** Yeo-Johnson, ROCKET, and the AIC/BIC analysis are each
+single-seed (2024) or, for AIC/BIC, derived from the single-seed sweep in
+Part 7 — none have the seed-variance confirmation Part 6 gave the
+calendar-feature finding. Ensembling is the only strand here that used
+multiple seeds directly, and even then only 3. All four strands, like
+every other one in this project, are ETTh1-only.
