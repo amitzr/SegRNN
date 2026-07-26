@@ -45,6 +45,20 @@ parser.add_argument('--mark_dim', type=int, default=4, help='SegRNNTime: calenda
 parser.add_argument('--hour_emb_dim', type=int, default=16, help='SegRNNTime: hour-of-day embedding width')
 parser.add_argument('--weekday_emb_dim', type=int, default=8, help='SegRNNTime: day-of-week embedding width')
 
+# Stage 2 improvement (Dataset_ETT_hour only): swap the plain StandardScaler
+# for a per-channel Yeo-Johnson power transform (standardize=True), fit on
+# train only. 0 = off, reconstruction unaffected.
+parser.add_argument('--power_transform', type=int, default=0, help='Yeo-Johnson power transform instead of StandardScaler; True 1 False 0')
+
+# SegRNNRocket (Stage 2 improvement): fixed random-convolution feature bank
+parser.add_argument('--rocket_kernels', type=int, default=32, help='SegRNNRocket: number of random conv kernels')
+parser.add_argument('--rocket_kernel_size', type=int, default=9, help='SegRNNRocket: kernel width')
+
+# Ensembling (Stage 2 improvement): save raw pred.npy/true.npy for this run
+# so predictions can be averaged across seeds after the fact. 0 = off (no
+# extra disk I/O), matches every other run unless explicitly requested.
+parser.add_argument('--save_preds', type=int, default=0, help='Save results/<setting>/pred.npy and true.npy; True 1 False 0')
+
 # DLinear
 #parser.add_argument('--individual', action='store_true', default=False, help='DLinear: a linear layer for each variate(channel) individually')
 

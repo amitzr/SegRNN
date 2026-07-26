@@ -32,7 +32,7 @@ def data_provider(args, flag):
         batch_size = args.batch_size
         freq = args.freq
 
-    data_set = Data(
+    data_kwargs = dict(
         root_path=args.root_path,
         data_path=args.data_path,
         flag=flag,
@@ -42,6 +42,9 @@ def data_provider(args, flag):
         timeenc=timeenc,
         freq=freq
     )
+    if Data is Dataset_ETT_hour and getattr(args, 'power_transform', 0):
+        data_kwargs['power_transform'] = True
+    data_set = Data(**data_kwargs)
     print(flag, len(data_set))
     data_loader = DataLoader(
         data_set,

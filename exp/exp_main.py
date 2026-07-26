@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime, SegRNNAttn
+from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime, SegRNNAttn, SegRNNRocket
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop
 from utils.metrics import metric
 
@@ -35,7 +35,8 @@ class Exp_Main(Exp_Basic):
             'VanillaRNN': VanillaRNN,
             'SegRNN': SegRNN,
             'SegRNNTime': SegRNNTime,
-            'SegRNNAttn': SegRNNAttn
+            'SegRNNAttn': SegRNNAttn,
+            'SegRNNRocket': SegRNNRocket
         }
         model = model_dict[self.args.model].Model(self.args).float()
 
@@ -340,8 +341,13 @@ class Exp_Main(Exp_Basic):
         f.close()
 
         # np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe,rse, corr]))
-        # np.save(folder_path + 'pred.npy', preds)
-        # np.save(folder_path + 'true.npy', trues)
+        if getattr(self.args, 'save_preds', 0):
+            # Stage 2 (ensembling): raw preds/trues, needed to average
+            # predictions across seeds before recomputing metrics -- averaging
+            # per-seed MSE/MAE (Part 6's seed-variance check) is a different,
+            # weaker thing than averaging predictions and scoring the average.
+            np.save(folder_path + 'pred.npy', preds)
+            np.save(folder_path + 'true.npy', trues)
         # np.save(folder_path + 'x.npy', inputx)
         return
 

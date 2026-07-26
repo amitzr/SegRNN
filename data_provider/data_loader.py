@@ -14,7 +14,7 @@ warnings.filterwarnings('ignore')
 class Dataset_ETT_hour(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h'):
+                 target='OT', scale=True, timeenc=0, freq='h', power_transform=False):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -35,13 +35,22 @@ class Dataset_ETT_hour(Dataset):
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.power_transform = power_transform
 
         self.root_path = root_path
         self.data_path = data_path
         self.__read_data__()
 
     def __read_data__(self):
-        self.scaler = StandardScaler()
+        if self.power_transform:
+            # Stage 2 candidate: Yeo-Johnson power transform (docs/Pre-precessing.pdf)
+            # in place of plain StandardScaler. standardize=True already
+            # zero-means/unit-variances the transformed values, so this is a
+            # drop-in swap, not an addition on top of StandardScaler.
+            from sklearn.preprocessing import PowerTransformer
+            self.scaler = PowerTransformer(method='yeo-johnson', standardize=True)
+        else:
+            self.scaler = StandardScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
 
