@@ -16,6 +16,38 @@ to attribute the result to either one.
 
 ---
 
+## Summary: all eight Stage 2 strands
+
+Assignment categories are the instructor's own list
+(`docs/segrnn_project_plan.md`'s "Coverage of the instructor's improvement
+categories" table). "Paper tried this?" is about the SegRNN paper
+specifically (`docs/SegRNN_paper.pdf`), not the wider literature.
+
+| # | Strand | Assignment category | Result | Paper tried this? | Lecture-grounded? |
+|---|---|---|---|---|---|
+| 1 | Calendar features (`SegRNNTime`, 3 attempts) | Add stronger time-series features | **Failed** — regressed at all 4 horizons, seed-confirmed real, not noise | No — the model consumes only raw values, no timestamps anywhere in the paper's design; related work (CycleNet, GLAFF, D2Vformer, IndexNet — `CLAUDE.md`'s novelty-honesty list) tries similar ideas on other backbones, never on SegRNN | Partial — `docs/DL_for_TS.pdf`'s embedding-layer slide covers embedding categorical/cyclical features generally, not this specific use |
+| 2 | RevIN normalization | Improve preprocessing and data quality | **Failed** — worse at all 4 horizons (+3.1% to +4.6% MSE) | Yes, but not here — the paper uses RevIN, applied specifically to datasets with "severe distribution shift" (e.g. Traffic), not as the ETTh1 default; this strand deliberately tests it somewhere the paper itself doesn't recommend it | Yes — `docs/DL_for_TS.pdf`'s Embedding Layer slide gives the exact z-score formula |
+| 3 | Attention over encoder states (`SegRNNAttn`) | Improve ML or deep-learning architecture | **Failed** — worse at all 4 horizons (+0.5% to +5.1% MSE) | No — SegRNN's whole design point is *avoiding* attention/Transformer machinery for efficiency; attention is what the paper's baselines (Informer/Autoformer/PatchTST/Transformer) use, not what SegRNN itself does | Yes — `docs/DL_for_TS.pdf`'s Attention slide, "information bottleneck" diagnosis |
+| 4 | `d_model` efficiency sweep (256/128/64) | Improve computational efficiency | **Succeeded** — `d_model=256` keeps 99.65% of accuracy at 25.5% of the parameters at H≤336 (H=720 costs more, +4.8%) | No — the paper doesn't ablate `d_model` for SegRNN itself (only PatchTST's default width appears, in the Table VI runtime comparison) | Not explicitly — written before the lecture PDFs existed; retroactively reinforced by strand 6's AIC/BIC read of the same data |
+| 5 | Yeo-Johnson power transform | Improve preprocessing and data quality | **Best result overall, with a real trade-off** — MSE improves 3.6-7.4% at every horizon (the only strand that beats the paper's own headline metric), MAE worsens 4.1-6.7% at every horizon | No — the paper's preprocessing is plain `StandardScaler`, fit on train only; no power transform | Yes — `docs/Pre-precessing.pdf`'s preprocessing slide |
+| 6 | AIC/BIC post-hoc analysis of the `d_model` sweep | Improve or tune the forecasting model | **Free analysis, not a trained model** — both criteria reject `d_model=512` at every horizon and go further than strand 4's own informal "knee" reading, favoring 64 or 128 everywhere | No — the paper uses validation loss + early stopping for model selection, not a formal information criterion | Yes — `docs/Time-Series Forecasting.pdf`'s model-selection slide |
+| 7 | Multi-seed prediction ensembling | Doesn't cleanly fit any instructor category (closest: improve or tune the forecasting model) | **Mostly neutral** — a borderline-noise small win at H=336, clearly noise at H=720 | No — the paper's own project plan flags this as a gap in the paper itself: "main tables are single runs," no multi-seed reporting | No — general technique, not covered by either lecture PDF; flagged as such when proposed |
+| 8 | ROCKET-style random-convolution features (`SegRNNRocket`) | Add stronger time-series features | **Failed, worst regression of any strand** — worse at 3/4 horizons, H=336's +8.7% MSE is the largest single-horizon regression tested in this project | No — ROCKET is a classification-era technique; no textbook or paper precedent for using it inside a forecaster | Yes, as a feature-engineering technique — `docs/Pre-precessing.pdf`; using it inside a forecaster rather than a classifier is an untaught adaptation, flagged as such when proposed |
+
+**Overall tally:** one clean success (`d_model` sweep), one best-of-project
+result with a genuine trade-off (Yeo-Johnson — the only strand that beats
+the paper's own headline MSE), one zero-cost analysis that reinforces the
+efficiency direction rather than standing on its own (AIC/BIC), one
+neutral strand (ensembling), and four failures (calendar features, RevIN,
+attention, ROCKET). The four failures share a structural signature laid
+out in this document's and `docs/stage2_revin_attn_draft.md`'s Discussion
+sections: every strand that *added* information or architectural richness
+regressed; every strand that *reduced* capacity or reshaped the input
+distribution without adding new information either succeeded outright or
+produced a genuine, honestly-reported trade-off.
+
+---
+
 ## Strand 5: Yeo-Johnson power transform (preprocessing)
 
 **What changed:** `data_provider/data_loader.py`'s `Dataset_ETT_hour`
