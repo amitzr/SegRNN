@@ -77,7 +77,7 @@ class Exp_Main(Exp_Basic):
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
                         if self.args.model == 'SegRNNTime':
-                            outputs = self.model(batch_x, batch_x_mark)
+                            outputs = self.model(batch_x, batch_y_mark)
                         elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
@@ -87,7 +87,7 @@ class Exp_Main(Exp_Basic):
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
                     if self.args.model == 'SegRNNTime':
-                        outputs = self.model(batch_x, batch_x_mark)
+                        outputs = self.model(batch_x, batch_y_mark)
                     elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                         outputs = self.model(batch_x)
                     else:
@@ -159,7 +159,7 @@ class Exp_Main(Exp_Basic):
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
                         if self.args.model == 'SegRNNTime':
-                            outputs = self.model(batch_x, batch_x_mark)
+                            outputs = self.model(batch_x, batch_y_mark)
                         elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
@@ -175,7 +175,7 @@ class Exp_Main(Exp_Basic):
                         train_loss.append(loss.item())
                 else:
                     if self.args.model == 'SegRNNTime':
-                            outputs = self.model(batch_x, batch_x_mark)
+                            outputs = self.model(batch_x, batch_y_mark)
                     elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                     else:
@@ -270,7 +270,7 @@ class Exp_Main(Exp_Basic):
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
                         if self.args.model == 'SegRNNTime':
-                            outputs = self.model(batch_x, batch_x_mark)
+                            outputs = self.model(batch_x, batch_y_mark)
                         elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
@@ -280,7 +280,7 @@ class Exp_Main(Exp_Basic):
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
                     if self.args.model == 'SegRNNTime':
-                            outputs = self.model(batch_x, batch_x_mark)
+                            outputs = self.model(batch_x, batch_y_mark)
                     elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                     else:
@@ -369,7 +369,7 @@ class Exp_Main(Exp_Basic):
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
                         if self.args.model == 'SegRNNTime':
-                            outputs = self.model(batch_x, batch_x_mark)
+                            outputs = self.model(batch_x, batch_y_mark)
                         elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                             outputs = self.model(batch_x)
                         else:
@@ -379,7 +379,7 @@ class Exp_Main(Exp_Basic):
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
                     if self.args.model == 'SegRNNTime':
-                        outputs = self.model(batch_x, batch_x_mark)
+                        outputs = self.model(batch_x, batch_y_mark)
                     elif any(substr in self.args.model for substr in {'Linear', 'SegRNN', 'TST'}):
                         outputs = self.model(batch_x)
                     else:
