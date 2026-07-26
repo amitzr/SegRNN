@@ -37,7 +37,43 @@ address skew in the *distribution* of each channel, which the paper's
 Table I load statistics suggest is plausible for at least a couple of
 ETTh1's seven channels.
 
-**Results:** pending — run notebook Part 0a.
+**Results:**
+
+| Horizon | Reconstruction MSE | Yeo-Johnson MSE | Δ | Reconstruction MAE | Yeo-Johnson MAE | Δ |
+|---|---|---|---|---|---|---|
+| 96 | 0.3510 | 0.3250 | -7.4% | 0.3925 | 0.4085 | +4.1% |
+| 192 | 0.3925 | 0.3640 | -7.3% | 0.4142 | 0.4368 | +5.5% |
+| 336 | 0.4233 | 0.4038 | -4.6% | 0.4327 | 0.4616 | +6.7% |
+| 720 | 0.4657 | 0.4489 | -3.6% | 0.4719 | 0.4926 | +4.4% |
+
+**Reading the result:** a genuinely different shape of result from every
+other strand so far — MSE and MAE disagree in *sign*, consistently, at
+every horizon. This hasn't happened in any of strands 1-4 (calendar
+features, RevIN, attention, `d_model` sweep all moved MSE and MAE
+together). MSE improves by a real margin (3.6-7.4%, largest at the
+shorter horizons) while MAE consistently worsens (4.1-6.7%).
+
+The likely explanation is exactly what Yeo-Johnson is designed to do:
+compress the scale of extreme values to stabilize variance. MSE weights
+squared error, so it is dominated by the model's worst few predictions —
+shrinking those outliers' scale before training plausibly lets the model
+fit them far better, which shows up as a large MSE improvement. MAE
+weights every error equally regardless of magnitude, so it's more
+sensitive to a shift in the *typical* prediction's accuracy — if
+compressing extreme values costs the model a little precision on
+ordinary-magnitude points (e.g., a coarser effective resolution near the
+distribution's center after the transform), that shows up as MAE getting
+worse even while the outlier-dominated MSE improves. This is a testable
+follow-up (e.g., look at the residual distribution/error histogram,
+not just the two aggregate metrics), not confirmed here.
+
+Practically: since the paper's headline metric is MSE (Table II), this is
+the first Stage 2 strand tested so far that actually beats the
+reconstruction on the paper's own primary comparison point — a real,
+positive result, alongside the caveat that it costs MAE. Worth reporting
+as a genuine trade-off rather than a clean win, and worth checking whether
+it holds up under the same seed-variance scrutiny Part 6 gave the
+calendar-feature finding (not yet done for this strand).
 
 ---
 
