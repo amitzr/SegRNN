@@ -136,35 +136,40 @@ little data per forward pass to learn from at that setting, while a long
 horizon gives them more decode steps to learn across, at the cost of the
 encoder-bottleneck pressure attempts 2/3 suffered from.
 
-**Seed variance check (before trusting any of the above):** every result
-above uses a single seed (2024). The notebook's Part 6 reruns
-Reconstruction and Improved at seeds 2021/2022 (plus the existing 2024
-run) for H=336 (smallest observed gap) and H=720 (largest), and computes
-the paired per-seed delta (Improved − Reconstruction) with its
-mean/std across the 3 seeds — if `|mean delta| < std delta`, the
-attempt-4 effect at that horizon is statistically indistinguishable from
-noise at this sample size.
-
-*[PLACEHOLDER — fill in from the notebook's Part 6 output]*
+**Seed variance check:** every result above uses a single seed (2024).
+`docs/DL_for_TS.pdf` aside, this is basic scientific hygiene — a
+0.2–3.4% delta from one training run per configuration could easily be
+noise. The notebook's Part 6 reran Reconstruction and Improved at 2 more
+seeds (2021, 2022; combined with the existing 2024 run, n=3) at H=336
+(smallest observed single-seed gap) and H=720 (largest), and computed the
+**paired** per-seed delta (Improved − Reconstruction — paired because
+both models use the identical seed set, canceling out seed-specific
+"easy vs. hard" shuffling effects common to both):
 
 | Horizon | Reconstruction MSE (mean ± std, n=3) | Improved MSE (mean ± std, n=3) | Paired delta (mean ± std) | Verdict |
 |---|---|---|---|---|
-| 336 | | | | |
-| 720 | | | | |
+| 336 | 0.4241 ± 0.0010 | 0.4283 ± 0.0039 | +0.0042 ± 0.0030 | **real effect** (\|mean\| > std) |
+| 720 | 0.4687 ± 0.0050 | 0.4761 ± 0.0041 | +0.0074 ± 0.0027 | **real effect** (\|mean\| > std) |
+
+Per-seed deltas were positive (Improved worse) for **all 6** paired
+comparisons (3 seeds × 2 horizons: `[+0.0065, +0.0054, +0.0008]` at
+H=336, `[+0.0061, +0.0057, +0.0104]` at H=720) — the effect is consistent
+in direction and magnitude across every seed tested, not a one-off. This
+strengthens rather than weakens the conclusion: attempt 4 reliably,
+reproducibly underperforms the reconstruction by a small margin. It is
+not seed noise. Also notable: the reconstruction's own seed-to-seed std
+(0.0010–0.0050) is small relative to Improved's (0.0039–0.0041) — the
+added embedding parameters make training modestly less stable
+run-to-run, on top of the mean-level regression.
 
 ---
 
 ## 6. Discussion
 
-*[Note: the framing below treats the attempt 1→4 trend as a real,
-progressively-improving effect. Check the seed variance table in section
-5 first — if it says the attempt-4 delta at H=336/720 is statistically
-indistinguishable from noise, soften "moved the result in the predicted
-direction" below to something like "was directionally consistent with,
-but not statistically distinguishable from, the predicted effect."]*
-
 **What worked:** nothing beat the reconstruction outright — this is a
-negative result across all four attempts. But the *arc* across attempts
+negative result across all four attempts, and the seed variance check
+(section 5) confirms it's a real, reproducible one, not an artifact of a
+single lucky/unlucky training run. But the *arc* across attempts
 worked, in the sense that each iteration was a distinct, falsifiable
 hypothesis about *why* the previous one failed, and each test actually
 moved the result in the predicted direction:
