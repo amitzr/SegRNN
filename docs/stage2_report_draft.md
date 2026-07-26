@@ -136,9 +136,32 @@ little data per forward pass to learn from at that setting, while a long
 horizon gives them more decode steps to learn across, at the cost of the
 encoder-bottleneck pressure attempts 2/3 suffered from.
 
+**Seed variance check (before trusting any of the above):** every result
+above uses a single seed (2024). The notebook's Part 6 reruns
+Reconstruction and Improved at seeds 2021/2022 (plus the existing 2024
+run) for H=336 (smallest observed gap) and H=720 (largest), and computes
+the paired per-seed delta (Improved − Reconstruction) with its
+mean/std across the 3 seeds — if `|mean delta| < std delta`, the
+attempt-4 effect at that horizon is statistically indistinguishable from
+noise at this sample size.
+
+*[PLACEHOLDER — fill in from the notebook's Part 6 output]*
+
+| Horizon | Reconstruction MSE (mean ± std, n=3) | Improved MSE (mean ± std, n=3) | Paired delta (mean ± std) | Verdict |
+|---|---|---|---|---|
+| 336 | | | | |
+| 720 | | | | |
+
 ---
 
 ## 6. Discussion
+
+*[Note: the framing below treats the attempt 1→4 trend as a real,
+progressively-improving effect. Check the seed variance table in section
+5 first — if it says the attempt-4 delta at H=336/720 is statistically
+indistinguishable from noise, soften "moved the result in the predicted
+direction" below to something like "was directionally consistent with,
+but not statistically distinguishable from, the predicted effect."]*
 
 **What worked:** nothing beat the reconstruction outright — this is a
 negative result across all four attempts. But the *arc* across attempts
