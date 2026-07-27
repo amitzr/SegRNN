@@ -39,7 +39,8 @@ already-failed strand — Yeo-Johnson is the one strand in the whole
 project with a measured positive effect (`docs/stage2_new_strands_draft.md`
 strand 5).
 
-**Results:** pending — run notebook Part 1.
+**Results:** qualitatively **terrible** (worst-in-batch) — exact figures
+not yet recorded here, pending the full per-horizon table.
 
 ---
 
@@ -63,7 +64,8 @@ sweep's "less is more" finding doesn't automatically transfer — but it's
 the same *direction* of change (more parameters), so the honest prior
 going in is skepticism, not a blank slate.
 
-**Results:** pending — run notebook Part 2.
+**Results:** qualitatively **slightly worse** — exact figures not yet
+recorded here, pending the full per-horizon table.
 
 ---
 
@@ -88,7 +90,13 @@ and AIC/BIC formally rejects even `d_model=512`'s parameter count
 (`docs/stage2_new_strands_draft.md` strand 6), this needs a strong effect
 to be worth its cost.
 
-**Results:** pending — run notebook Part 3.
+**Results:** qualitatively **around the same** as the reconstruction —
+exact figures not yet recorded here, pending the full per-horizon table.
+Notably, this contradicts the prediction made in this document's own
+Discussion (below) that bidirectional, as the heaviest strand, was "the
+more likely of the two [depth, direction] to regress clearly" — instead
+it's depth (strand 10) that regressed, while the structurally heavier
+bidirectional strand came in roughly neutral.
 
 ---
 
@@ -114,7 +122,9 @@ this as the higher-risk of its two listed architecture candidates, citing
 ISMRNN (arXiv 2407.10768) reporting conv hurting on all datasets except
 Weather — going in with that prior, not a blank slate.
 
-**Results:** pending — run notebook Part 4.
+**Results:** qualitatively **bad** — exact figures not yet recorded here,
+pending the full per-horizon table. Matches the prior cited in advance
+(ISMRNN's reported conv regressions).
 
 ---
 
@@ -131,8 +141,15 @@ that write-up's own limitations section names `affine=True` as the
 specific untested variant that "might behave differently, even on
 ETTh1" — this strand is that direct follow-up, not a new idea.
 
-**Results:** pending — run notebook Part 5 (compared against both the
-reconstruction and the already-measured `affine=False` numbers).
+**Results:** qualitatively **better than `affine=False`, but still worse
+than the reconstruction** — exact figures not yet recorded here, pending
+the full per-horizon table. This is a clean partial confirmation of the
+strand's own hypothesis: the affine correction genuinely helps (moves the
+result back toward the reconstruction, as predicted), it just isn't
+enough to overcome whatever makes RevIN a poor fit for this
+dataset/architecture in the first place (`docs/stage2_revin_attn_draft.md`
+strand 3's own diagnosis — stale/diluted full-window anchor vs. the
+default's last-value anchor).
 
 ---
 
@@ -159,32 +176,111 @@ preprocessing-level fix redundant, additive, or actively conflicting
 (e.g., Huber's own outlier-robustness acting on already-compressed
 values may behave differently than on raw ones).
 
-**Results:** pending — run notebook Part 6.
+**Results:**
+
+| Horizon | Config | MSE | Δ MSE | MAE | Δ MAE |
+|---|---|---|---|---|---|
+| 336 | Reconstruction | 0.4233 | — | 0.4327 | — |
+| 336 | huber | 0.4271 | +0.9% | 0.4306 | -0.5% |
+| 336 | huber + YJ | 0.3983 | -5.9% | 0.4526 | +4.6% |
+| 336 | blend | 0.4258 | +0.6% | 0.4306 | -0.5% |
+| 336 | blend + YJ | 0.3983 | -5.9% | 0.4530 | +4.7% |
+| 720 | Reconstruction | 0.4657 | — | 0.4719 | — |
+| 720 | huber | 0.4453 | **-4.4%** | 0.4563 | **-3.3%** |
+| 720 | huber + YJ | 0.4448 | -4.5% | 0.4865 | +3.1% |
+| 720 | blend | 0.4597 | -1.3% | 0.4662 | -1.2% |
+| 720 | blend + YJ | 0.4508 | -3.2% | 0.4884 | +3.5% |
+
+**Reading the result — the most promising strand across both documents.**
+Two distinct findings, one per horizon:
+
+**H=720: `huber` alone (no Yeo-Johnson) improves *both* MSE (-4.4%) and
+MAE (-3.3%) simultaneously.** This is the first strand in the entire
+project — across all 14 strands tested in `docs/stage2_new_strands_draft.md`
+and here — with a clean win on both point-forecast metrics at once, no
+trade-off. `d_model=256` was a free efficiency win with a small accuracy
+cost; Yeo-Johnson was an MSE win with an MAE cost; this is a plain loss-
+function swap, zero new parameters, that wins outright. `blend` alone is
+a smaller version of the same clean-win pattern (-1.3% / -1.2%) — same
+direction, less pronounced than `huber`.
+
+**H=336: `huber`/`blend` alone are small and balanced, not dramatic** —
+MSE roughly flat (+0.9%, +0.6%), MAE a small genuine improvement (-0.5%
+both). Not the same clean win as H=720, but not a trade-off either —
+the closest thing to "no downside" this project has produced at this
+horizon.
+
+**Does Yeo-Johnson compound with a robust loss, or compete with it? —
+compete, and clearly so at H=720.** Adding `--power_transform 1` on top
+of `huber` barely changes MSE at H=720 (-4.4% -> -4.5%, essentially
+identical) but flips MAE from a -3.3% win into a +3.1% loss — a ~6.4
+point swing for no additional MSE benefit. Same pattern for `blend`
+(+3.5% MAE vs. -1.2% alone). At H=336, adding Yeo-Johnson pushes MSE
+further down (-5.9%, beyond either alone) but reproduces the same MAE
+cost (+4.6-4.7%) that plain Yeo-Johnson itself has
+(`docs/stage2_new_strands_draft.md` strand 5: +6.7% MAE at H=336). Put
+together: Huber/blend and Yeo-Johnson appear to be **two different
+answers to the same problem** (MSE's outlier-sensitivity) rather than
+independent, additive fixes — once a robust loss is already handling
+that job, adding Yeo-Johnson on top doesn't help further and actively
+costs MAE. **The practical takeaway is `huber` loss alone, without
+Yeo-Johnson, not the combination.**
 
 ---
 
 ## Discussion
 
-To be written once all six strands have real results. Given the
-established pattern (`docs/stage2_new_strands_draft.md`'s Discussion:
-every strand that added information or architectural richness regressed;
-only reducing capacity or reshaping the input distribution without adding
-information either succeeded or produced an honest trade-off), a stated
-prior before running anything, so it stays falsifiable:
-- Encoder depth and bidirectional encoding both add capacity in the
-  direction AIC/BIC already rejected — expect regression or, at best,
-  a small/noise-scale effect, with bidirectional (the heaviest strand)
-  the more likely of the two to regress clearly.
-- Conv embedding: `CLAUDE.md`'s own cited prior work (ISMRNN) predicts
-  regression except possibly on Weather-like data, not ETTh1.
-- FFT features repeat the "inject into `h_n`" pattern that has failed
-  for three prior information sources (calendar, attention, ROCKET) —
-  expect the same outcome, though FFT is a more classically appropriate
-  feature source than ROCKET was, so less confident in this one than in
-  the capacity-adding strands above.
-- RevIN affine=True is the one strand here testing a *fix* to an
-  already-diagnosed problem (the disabled affine correction), not a new
-  capacity addition — the closest thing to a plausible win in this batch.
-- Loss function (Huber/blend) is, like Yeo-Johnson, not a capacity change
-  at all — a genuinely open question, and the one other strand besides
-  RevIN-affine worth going in without a negative prior.
+**Checking the prediction made before running anything** (stated below,
+before results existed): three parts held, one was wrong, one was mixed.
+
+- FFT repeats the "inject into `h_n`" failure pattern — **confirmed**,
+  and more strongly than expected ("terrible" is the qualitative low
+  point of this whole batch, consistent with calendar features/attention/
+  ROCKET all failing the same way regardless of feature source).
+- Conv embedding regresses, per the ISMRNN prior — **confirmed** ("bad").
+- RevIN affine=True is a partial fix, not a full one — **confirmed
+  exactly as hypothesized**: better than `affine=False`, still worse than
+  no RevIN at all.
+- Encoder depth and bidirectional both add capacity, predicted to
+  regress or show a small effect, with bidirectional (the heavier one)
+  "more likely to regress clearly" — **half right**. Depth did regress
+  (slightly). Bidirectional, the *heavier* of the two by parameter count,
+  came in roughly neutral instead — the opposite of which one was
+  predicted to fail more clearly. Capacity alone doesn't predict outcome
+  as cleanly as the rest of this project's pattern suggested; *how* the
+  capacity is used seems to matter as much as *how much* is added.
+- Loss function was flagged as "a genuinely open question... worth going
+  in without a negative prior" — technically correct, but this
+  undersells it. It turned out to be the best result in either document:
+  `huber` alone at H=720 is the first strand in the whole project to
+  improve *both* MSE and MAE with no trade-off at all.
+
+**How this batch fits the wider project.** The four strands that added
+information or capacity into the architecture itself (FFT, conv
+embedding, encoder depth, bidirectional) landed exactly where the
+established pattern predicted — failure or, at best, neutral — extending
+that signature to eight strands now across four unrelated information
+sources (calendar, attention, ROCKET, FFT) and three unrelated capacity
+axes (`d_model`, encoder depth, bidirectional). RevIN affine=True
+confirms the more nuanced reading from `docs/stage2_revin_attn_draft.md`:
+the *specific implementation* tested there was fixable in the predicted
+direction, even though the underlying dataset/architecture mismatch
+remains. The loss-function strand is the real headline: it's the second
+strand in the whole project (after `d_model=256`) with an unambiguous
+win, and the *first* with no trade-off attached at all — and it argues
+against combining every positive-seeming idea together, since stacking
+Yeo-Johnson onto Huber turned out to make H=720 strictly worse on MAE for
+no MSE gain. The practical recommendation for the final report is
+`huber` loss alone as the strongest single Stage 2 change found, ahead of
+Yeo-Johnson and ahead of the `d_model` efficiency win on raw accuracy
+(though `d_model=256` remains the strongest result if efficiency, not
+just accuracy, is the goal).
+
+**Limitations:** strands 9-13's headline verdicts above are qualitative,
+reported by the user from the notebook's live output rather than
+transcribed into this document as exact per-horizon numbers yet — worth
+pulling the precise tables in before finalizing the report, same standard
+every other strand in this project has been held to. Strand 14's numbers
+are exact (H=336, H=720 only, single seed each, no seed-variance check
+yet — unlike the calendar-feature finding, not yet confirmed real vs.
+noise).
