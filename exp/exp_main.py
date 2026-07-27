@@ -1,7 +1,7 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime, SegRNNAttn, SegRNNRocket
-from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop
+from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime, SegRNNAttn, SegRNNRocket, SegRNNFFT, SegRNNDeepEncoder, SegRNNBidir, SegRNNConvEmbed, SegRNNRevINAffine
+from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop, BlendLoss
 from utils.metrics import metric
 
 import numpy as np
@@ -36,7 +36,12 @@ class Exp_Main(Exp_Basic):
             'SegRNN': SegRNN,
             'SegRNNTime': SegRNNTime,
             'SegRNNAttn': SegRNNAttn,
-            'SegRNNRocket': SegRNNRocket
+            'SegRNNRocket': SegRNNRocket,
+            'SegRNNFFT': SegRNNFFT,
+            'SegRNNDeepEncoder': SegRNNDeepEncoder,
+            'SegRNNBidir': SegRNNBidir,
+            'SegRNNConvEmbed': SegRNNConvEmbed,
+            'SegRNNRevINAffine': SegRNNRevINAffine
         }
         model = model_dict[self.args.model].Model(self.args).float()
 
@@ -57,6 +62,10 @@ class Exp_Main(Exp_Basic):
             criterion = nn.L1Loss()
         elif self.args.loss == "mse":
             criterion = nn.MSELoss()
+        elif self.args.loss == "huber":
+            criterion = nn.HuberLoss(delta=self.args.huber_delta)
+        elif self.args.loss == "blend":
+            criterion = BlendLoss(alpha=self.args.blend_alpha)
         else:
             criterion = nn.L1Loss()
         return criterion

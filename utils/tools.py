@@ -1,9 +1,26 @@
 import numpy as np
 import torch
+import torch.nn as nn
 import matplotlib.pyplot as plt
 import time
 
 plt.switch_backend('agg')
+
+
+class BlendLoss(nn.Module):
+    """Stage 2 improvement candidate: alpha*MSE + (1-alpha)*MAE, targeting
+    the same MSE-vs-MAE trade-off Yeo-Johnson exposed (docs/stage2_new_strands_draft.md
+    strand 5) at the loss-function level instead of via a preprocessing
+    transform."""
+
+    def __init__(self, alpha=0.5):
+        super().__init__()
+        self.alpha = alpha
+        self.mse = nn.MSELoss()
+        self.mae = nn.L1Loss()
+
+    def forward(self, pred, true):
+        return self.alpha * self.mse(pred, true) + (1 - self.alpha) * self.mae(pred, true)
 
 
 def adjust_learning_rate(optimizer, scheduler, epoch, args, printout=True):

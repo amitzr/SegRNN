@@ -54,6 +54,15 @@ parser.add_argument('--power_transform', type=int, default=0, help='Yeo-Johnson 
 parser.add_argument('--rocket_kernels', type=int, default=32, help='SegRNNRocket: number of random conv kernels')
 parser.add_argument('--rocket_kernel_size', type=int, default=9, help='SegRNNRocket: kernel width')
 
+# SegRNNFFT (Stage 2 improvement): top-K FFT-magnitude feature bank
+parser.add_argument('--fft_k', type=int, default=32, help='SegRNNFFT: number of top FFT magnitude bins')
+
+# SegRNNDeepEncoder (Stage 2 improvement): stacked GRU encoder
+parser.add_argument('--encoder_layers', type=int, default=2, help='SegRNNDeepEncoder: number of stacked GRU layers')
+
+# SegRNNConvEmbed (Stage 2 improvement): conv-based per-segment embedding
+parser.add_argument('--conv_kernel_size', type=int, default=5, help='SegRNNConvEmbed: within-segment conv kernel width')
+
 # Ensembling (Stage 2 improvement): save raw pred.npy/true.npy for this run
 # so predictions can be averaged across seeds after the fact. 0 = off (no
 # extra disk I/O), matches every other run unless explicitly requested.
@@ -105,7 +114,9 @@ parser.add_argument('--batch_size', type=int, default=128, help='batch size of t
 parser.add_argument('--patience', type=int, default=5, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
 parser.add_argument('--des', type=str, default='test', help='exp description')
-parser.add_argument('--loss', type=str, default='mse', help='loss function')
+parser.add_argument('--loss', type=str, default='mse', help='loss function: mse, mae, huber, blend')
+parser.add_argument('--huber_delta', type=float, default=1.0, help='Huber loss delta')
+parser.add_argument('--blend_alpha', type=float, default=0.5, help='blend loss: alpha*MSE + (1-alpha)*MAE')
 parser.add_argument('--lradj', type=str, default='type3', help='adjust learning rate')
 parser.add_argument('--pct_start', type=float, default=0.3, help='pct_start')
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
