@@ -37,7 +37,22 @@ cost. If it regresses on its own, that would instead suggest
 bidirectional context was doing real work in `SegRNNBidir`, compensating
 for the added decode capacity.
 
-**Results:** pending — run notebook Part 1.
+**Results:** regresses, and the regression **grows with horizon** — H=96
+comes back roughly tied with the reconstruction, but the gap widens
+steadily through H=720 (exact per-horizon table not yet transcribed
+here). This is a different failure shape from `SegRNNBidir`'s flat
+"around the same" across all four horizons.
+
+**Reading the result, combined with strand 16 below:** since
+`SegRNNBidir` (bidirectional encoding *and* an unshared decode cell) was
+flat across horizons, while this strand (unshared decode cell *alone*)
+gets worse as horizon grows, the natural read is that bidirectional
+encoding's extra context is what was compensating for the unshared
+decoder's weakness at longer horizons in `SegRNNBidir` — not that
+un-sharing itself is free. Un-sharing alone has a real cost that scales
+with how much the decoder has to produce; bidirectional context happens
+to offset exactly that cost. A more informative finding than a flat
+"neutral" would have been.
 
 ---
 
@@ -59,7 +74,26 @@ this data, or because the added Q/K/V parameters repeated the same
 the bottleneck-removal question at (essentially) zero added capacity,
 separating the two explanations.
 
-**Results:** pending — run notebook Part 2.
+**Results:**
+
+| Horizon | Reconstruction MSE | Pool Context MSE | Δ | Reconstruction MAE | Pool Context MAE | Δ |
+|---|---|---|---|---|---|---|
+| 96 | 0.3510 | 0.3484 | -0.7% | 0.3925 | 0.3888 | -0.9% |
+| 192 | 0.3925 | 0.3854 | -1.8% | 0.4142 | 0.4110 | -0.8% |
+| 336 | 0.4233 | 0.4233 | 0.0% | 0.4327 | 0.4371 | +1.0% |
+| 720 | 0.4657 | 0.4583 | -1.6% | 0.4719 | 0.4671 | -1.0% |
+
+**Reading the result — the cleanest positive result in the project.**
+Improves *both* MSE and MAE at three of four horizons (96, 192, 720);
+H=336 is a wash (MSE exactly tied, MAE a small +1.0% cost). This
+directly resolves strand 16's own open question: giving the decoder
+access to more than `h_n` *does* help this data — `SegRNNAttn`'s
+regression was about the added Q/K/V parameters, not the bottleneck-
+removal idea itself. And it does so at **zero added parameters** versus
+plain `SegRNN` — no projection layer, no learned weights of its own at
+all, just a pooling operation. Alongside `d_model=256` and Huber loss,
+this is the third genuine win in the project, and by parameter cost, the
+cheapest of the three.
 
 ---
 
@@ -78,7 +112,20 @@ rather than picking a smaller `d_model` — a genuinely different
 mechanism for the same underlying "less is more" finding, untested until
 now.
 
-**Results:** pending — run notebook Part 3.
+**Results:** mixed and mostly small — MSE consistently a bit worse across
+horizons; MAE roughly tied, with a small improvement at H=720 (exact
+per-horizon table not yet transcribed here). Not a clean win like strand
+16, but not the clear regressions strands 15/18/19 show either.
+
+**Reading the result:** weaker support for the "structural capacity
+reduction" hypothesis than `d_model=256` or Huber loss gave. Tying the
+value-embedding and predict weights removes real capacity
+(`seg_len * d_model` parameters) but also forces the same representation
+to serve two different jobs (turning a segment into a hidden state, and
+turning a hidden state back into a segment) — those may not be as
+symmetric as the tied-autoencoder framing assumes, which could explain
+why this reduction doesn't help the way `d_model=256`'s more uniform
+shrink did.
 
 ---
 
@@ -98,7 +145,11 @@ project's Stage 2 findings. Blending rather than replacing lets the
 model learn, per channel, how much to trust a plain linear view of the
 series versus SegRNN's recurrent view.
 
-**Results:** pending — run notebook Part 4.
+**Results:** worse (exact per-horizon table not yet transcribed here).
+See the Discussion's follow-up note below for a proposed better-grounded
+variant (real trend/seasonal decomposition, and post-hoc prediction
+averaging instead of joint-training blend) rather than abandoning the
+idea outright.
 
 ---
 
@@ -116,25 +167,61 @@ an optimization/conditioning aid, closer in spirit to the loss-function
 strand (a training-dynamics change) than to attention/ROCKET/FFT/conv
 embedding (all information-injection changes).
 
-**Results:** pending — run notebook Part 5.
+**Results:** worse (exact per-horizon table not yet transcribed here).
+See the Discussion's follow-up note below for a proposed repositioned
+variant (normalizing the GRU's hidden state instead of the input
+embedding) rather than abandoning the idea outright.
 
 ---
 
 ## Discussion
 
-To be written once all five strands have real results. Stated priors,
-before running anything:
-- Weight tying and LayerNorm are the two strands most aligned with what
-  has actually worked in this project (structural reduction; a
-  non-informational training aid) — the closest things to expecting a
-  positive or neutral result rather than a regression.
-- Pool context and unshared-decode are diagnostic strands as much as
-  improvement candidates — their value is in what they reveal about
-  *why* `SegRNNAttn` and `SegRNNBidir` behaved the way they did, not just
-  whether they beat the reconstruction outright.
-- Linear shortcut is the least predictable of the five: it's not a
-  capacity reduction (adds `seq_len * pred_len` parameters, non-trivial
-  at long horizons) but also isn't a repeat of the "inject more into
-  `h_n`" pattern that has failed repeatedly — it's a structurally
-  different kind of addition (a whole separate simple mechanism, blended
-  in) that doesn't have a close analog among strands tested so far.
+**Checking the prediction made before running anything:** weight tying
+and LayerNorm were flagged as "the closest things to expecting a
+positive or neutral result" — **wrong for both**; both regressed, while
+pool context (framed as a diagnostic strand first, improvement candidate
+second) turned out to be this batch's clear win. Diagnostic value of the
+un-shared/pooled pair came through as hoped: strand 15 (regresses,
+growing with horizon) plus `SegRNNBidir`'s flat result together point at
+bidirectional context specifically compensating for the un-shared
+decoder's cost, not un-sharing being free on its own. Linear shortcut was
+correctly flagged as the least predictable — it regressed, joining
+weight tying and LayerNorm rather than pool context.
+
+**Net for this batch: one clear win (pool context, zero added
+parameters), one mixed/inconclusive result (weight tying), three
+regressions (unshared decode, linear shortcut, LayerNorm).** Combined
+with every strand tested across all three documents, pool context is the
+strongest single piece of evidence yet that "the encoder's bottleneck
+hurts this data" is a real effect independent of implementation cost —
+it took three attempts at removing that bottleneck (attention, ROCKET/FFT
+injected into `h_n`, and now pooling) to find the one that actually pays
+for itself.
+
+**Follow-up variants worth building for the two ideas that "sound right"
+but underperformed as implemented (linear shortcut, LayerNorm) — not
+abandoning either, revising the mechanism:**
+
+- **Linear shortcut → real DLinear-style decomposition, and/or post-hoc
+  blending instead of joint-training blending.** The tested version was a
+  single plain `Linear(seq_len -> pred_len)`, not real DLinear (which
+  splits the input into a moving-average trend and a seasonal residual,
+  each with its own linear map) — a weaker version of the cited
+  motivation than the paper's own DLinear baseline. Separately, jointly
+  training an in-network blend gate risks both paths pulling each other's
+  gradients around early in training, before the gate has learned a
+  sensible split. A cleaner test: train `SegRNN` and `DLinear` (already in
+  `models/`, a baseline this project already reconstructed) completely
+  independently, then average their *predictions* post-hoc — the same
+  "average predictions, not metrics" logic strand 7's ensembling used,
+  just across model families instead of seeds, avoiding the joint-training
+  interference risk entirely.
+- **LayerNorm → normalize the GRU's hidden state, not the input
+  embedding.** The tested placement (right after `Linear + ReLU`,
+  encoder-input side) may be double-normalizing on top of the existing
+  last-value subtraction, or disrupting a scale relationship the GRU has
+  already learned to expect at its input. Applying `LayerNorm` to `h_n`
+  itself, right before decoding — normalizing the bottleneck
+  representation the same way a Transformer block normalizes hidden
+  states, not the raw input — is a different placement of the same
+  near-zero-cost idea, untested here.
