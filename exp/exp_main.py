@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime, SegRNNAttn, SegRNNRocket, SegRNNFFT, SegRNNDeepEncoder, SegRNNBidir, SegRNNConvEmbed, SegRNNRevINAffine
+from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, VanillaRNN, SegRNN, SegRNNTime, SegRNNAttn, SegRNNRocket, SegRNNFFT, SegRNNDeepEncoder, SegRNNBidir, SegRNNConvEmbed, SegRNNRevINAffine, SegRNNUnshared, SegRNNPoolContext, SegRNNWeightTied, SegRNNLinearShortcut, SegRNNLayerNorm
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop, BlendLoss
 from utils.metrics import metric
 
@@ -41,7 +41,12 @@ class Exp_Main(Exp_Basic):
             'SegRNNDeepEncoder': SegRNNDeepEncoder,
             'SegRNNBidir': SegRNNBidir,
             'SegRNNConvEmbed': SegRNNConvEmbed,
-            'SegRNNRevINAffine': SegRNNRevINAffine
+            'SegRNNRevINAffine': SegRNNRevINAffine,
+            'SegRNNUnshared': SegRNNUnshared,
+            'SegRNNPoolContext': SegRNNPoolContext,
+            'SegRNNWeightTied': SegRNNWeightTied,
+            'SegRNNLinearShortcut': SegRNNLinearShortcut,
+            'SegRNNLayerNorm': SegRNNLayerNorm
         }
         model = model_dict[self.args.model].Model(self.args).float()
 

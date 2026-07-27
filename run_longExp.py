@@ -63,6 +63,9 @@ parser.add_argument('--encoder_layers', type=int, default=2, help='SegRNNDeepEnc
 # SegRNNConvEmbed (Stage 2 improvement): conv-based per-segment embedding
 parser.add_argument('--conv_kernel_size', type=int, default=5, help='SegRNNConvEmbed: within-segment conv kernel width')
 
+# SegRNNPoolContext (Stage 2 improvement): parameter-free pooling context
+parser.add_argument('--pool_type', type=str, default='mean', help='SegRNNPoolContext: mean or max')
+
 # Ensembling (Stage 2 improvement): save raw pred.npy/true.npy for this run
 # so predictions can be averaged across seeds after the fact. 0 = off (no
 # extra disk I/O), matches every other run unless explicitly requested.
