@@ -481,7 +481,49 @@ preprocessing result in the first place — so the same sweep applies here
 with no shifting workaround, no dropped premise, and no risk of the
 silent-NaN bug that hit the Box-Cox fixed-lambda path.
 
-**Results:** pending — run notebook Part 0.
+**Results:**
+
+| Horizon | Metric | Reconstruction | YJ (MLE) | λ=-2 | λ=-1 | λ=-0.5 | λ=0 | λ=0.5 | λ=1 | λ=2 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 336 | MSE | 0.4233 | 0.4038 | 0.7828 | 1.0009 | 1.1252 | 0.9203 | 0.5501 | **0.4232** | 0.4646 |
+| 336 | MAE | 0.4327 | 0.4616 | **0.2832** | 0.3409 | 0.4019 | 0.4315 | 0.4266 | **0.4327** | 0.4525 |
+| 720 | MSE | 0.4657 | 0.4489 | 0.8800 | 1.0656 | 1.1406 | 0.9497 | 0.5983 | **0.4656** | 0.6164 |
+| 720 | MAE | 0.4719 | 0.4926 | **0.3516** | 0.3801 | 0.4264 | 0.4867 | 0.4863 | **0.4719** | 0.5174 |
+
+**Sanity check, confirmed exactly:** Yeo-Johnson at λ=1 is mathematically
+the identity transform (`y=x` on both branches of the piecewise
+formula), so with `standardize=True` on top it reduces to exactly
+`StandardScaler` — the reconstruction's own scaler. λ=1's MSE/MAE match
+the reconstruction almost exactly at both horizons (0.4232 vs. 0.4233
+MSE at H=336), confirming `FixedLambdaYeoJohnson` is implemented
+correctly, independent of the earlier numerical round-trip check.
+
+**The real finding: a much steeper version of the original Yeo-Johnson
+trade-off than the single MLE-fit point revealed.** As λ moves away from
+1 toward -2, MAE improves dramatically and roughly monotonically
+(0.4327 → 0.4315 → 0.4019 → 0.3409 → **0.2832** at H=336) while MSE gets
+substantially worse, peaking around λ=-0.5/-1 before easing slightly at
+λ=-2 (0.4232 → 0.9203 → 1.1252 → 1.0009 → 0.7828). **λ=-2's MAE (0.2832
+at H=336, 0.3516 at H=720) is the best MAE result anywhere in this
+project** — well past the MLE-fit Yeo-Johnson's own MAE cost, in the
+opposite direction — but its MSE (0.78-0.88, roughly double the
+reconstruction) is far worse than anything else recorded, including
+every strand that "regressed."
+
+**No fixed λ in this grid beats the MLE-fit result on MSE** (0.4038/
+0.4489 remains the best MSE in the whole preprocessing family) — but
+the comparison isn't fully clean, and that matters for how to read this:
+MLE-fit Yeo-Johnson fits a **separate λ per channel** (7 channels, 7
+independently-optimized lambdas), while this sweep applies **one λ to
+all 7 channels uniformly**. The sharp MSE blow-up around λ=-0.5/-1 could
+be partly an artifact of forcing channels with very different natural
+scales (load features vs. oil temperature) through the same transform
+strength, not purely a statement about that λ value in isolation — so
+this sweep answers "does *one global* non-MLE λ beat per-channel MLE"
+(no), not cleanly "does *any* non-MLE λ, channel-by-channel, beat MLE"
+(still open). A per-channel fixed-λ sweep would be the natural next
+step if this trade-off curve is worth characterizing further, not
+attempted here.
 
 ---
 
