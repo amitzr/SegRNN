@@ -1,6 +1,8 @@
-# Stage 2 report content — five follow-up architecture ideas (draft)
+# Stage 2 report content — follow-up architecture ideas (draft)
 
-Draft content for five more independent Stage 2 strands, alongside
+Draft content for seven more independent Stage 2 strands (five original,
+plus two revised variants built after the originals underperformed),
+alongside
 `docs/stage2_report_draft.md`, `docs/stage2_efficiency_draft.md`,
 `docs/stage2_revin_attn_draft.md`, `docs/stage2_new_strands_draft.md`,
 and `docs/stage2_architecture_variants_draft.md`. Sources:
@@ -171,6 +173,60 @@ embedding (all information-injection changes).
 See the Discussion's follow-up note below for a proposed repositioned
 variant (normalizing the GRU's hidden state instead of the input
 embedding) rather than abandoning the idea outright.
+
+---
+
+## Strand 20: LayerNorm on `h_n` instead of the input embedding (`SegRNNLayerNormHidden`)
+
+**What changed:** revised placement of strand 19's idea, which
+regressed. Same `nn.LayerNorm(d_model)`, same near-zero parameter cost
+(`2 * d_model`), applied to `h_n` immediately after encoding — right
+before it initializes the decode step — instead of to the input
+embedding right after `Linear + ReLU`.
+
+**Why:** the original placement may have been double-normalizing on top
+of the existing last-value subtraction, or disrupting a scale
+relationship the GRU had already learned to expect at its input.
+Normalizing `h_n` instead targets the actual bottleneck representation —
+the same thing pool context (strand 16) and attention (already tested)
+both operate on — rather than a step further upstream. This is the
+placement a Transformer block would use (normalize hidden states between
+sub-layers, not raw input embeddings).
+
+**Results:** pending — run notebook Part 6.
+
+---
+
+## Strand 21: post-hoc ensemble of independently-trained `SegRNN` + `DLinear`
+
+**What changed:** revised version of strand 18 (linear shortcut), which
+regressed. Instead of a single plain `Linear(seq_len -> pred_len)`
+jointly trained and blended into `SegRNN` via a learned gate, this trains
+`SegRNN` and the repo's own `DLinear` (`models/DLinear.py`, already
+reconstructed as a Stage 1 baseline candidate) completely independently
+— each with `--save_preds 1` — then averages their raw predictions
+(not their metrics) and scores the averaged prediction. `DLinear`'s
+`--individual` flag already exists in `run_longExp.py` (defaults to 0,
+shared weights across channels), so no new CLI flags were needed.
+
+**Why this should fix strand 18's two likely problems:**
+1. **A stronger linear model.** Strand 18's shortcut was one flat
+   `Linear(seq_len, pred_len)` — a materially weaker model than real
+   `DLinear`, which decomposes the input into a moving-average trend and
+   a seasonal residual, each with its own linear map. The paper's own
+   text (Section V-B2) is about *DLinear specifically* beating
+   Transformer baselines in the univariate setting, not "any linear
+   layer" — strand 18 tested a weaker proxy for the thing that was
+   actually motivating it.
+2. **No joint-training interference.** Strand 18's blend gate and the
+   RNN path were trained together, so a poorly-initialized or slowly-
+   converging gate could have let each path's gradients disrupt the
+   other's early training. Training both models fully independently,
+   then blending only at prediction time, removes that risk entirely —
+   the same "average predictions, not metrics" logic strand 7's seed
+   ensembling used, applied across model families instead of seeds.
+
+**Results:** pending — run notebook Part 7.
 
 ---
 
