@@ -66,6 +66,12 @@ parser.add_argument('--conv_kernel_size', type=int, default=5, help='SegRNNConvE
 # SegRNNPoolContext (Stage 2 improvement): parameter-free pooling context
 parser.add_argument('--pool_type', type=str, default='mean', help='SegRNNPoolContext: mean or max')
 
+# SegRNNReservoir (Stage 2 improvement): frozen ESN-style reservoir cell
+parser.add_argument('--reservoir_spectral_radius', type=float, default=0.9,
+                     help='SegRNNReservoir: target spectral radius of the frozen recurrent weight matrix')
+parser.add_argument('--reservoir_scale_init', type=int, default=1,
+                     help='SegRNNReservoir: 1=scale to reservoir_spectral_radius before freezing, 0=freeze raw default init (ablation); True 1 False 0')
+
 # Ensembling (Stage 2 improvement): save raw pred.npy/true.npy for this run
 # so predictions can be averaged across seeds after the fact. 0 = off (no
 # extra disk I/O), matches every other run unless explicitly requested.

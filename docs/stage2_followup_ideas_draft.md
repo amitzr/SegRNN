@@ -1,14 +1,16 @@
 # Stage 2 report content — follow-up architecture ideas (draft)
 
-Draft content for seven more independent Stage 2 strands (five original,
-plus two revised variants built after the originals underperformed),
-alongside
+Draft content for ten more independent Stage 2 strands (five original,
+two revised variants built after the originals underperformed, and three
+testing whether SegRNN's own recurrent cell works as a frozen
+reservoir-computing / Echo State Network core), alongside
 `docs/stage2_report_draft.md`, `docs/stage2_efficiency_draft.md`,
 `docs/stage2_revin_attn_draft.md`, `docs/stage2_new_strands_draft.md`,
 and `docs/stage2_architecture_variants_draft.md`. Sources:
 `notebooks/colab_runner_stage2c.ipynb`, `models/SegRNNUnshared.py`,
 `models/SegRNNPoolContext.py`, `models/SegRNNWeightTied.py`,
-`models/SegRNNLinearShortcut.py`, `models/SegRNNLayerNorm.py`.
+`models/SegRNNLinearShortcut.py`, `models/SegRNNLayerNorm.py`,
+`models/SegRNNReservoir.py`.
 
 Unlike the earlier batches, these five weren't picked from a fixed list
 of lecture-adjacent techniques — they were chosen specifically to follow
@@ -273,6 +275,82 @@ most at H=720 specifically.
 
 ---
 
+## Strand 22: naive frozen reservoir, no ESN tuning (`SegRNNReservoir`, control)
+
+**What changed:** SegRNN's own recurrent cell (`--rnn_type rnn`, a plain
+tanh cell — GRU/LSTM gates are meant to be *trained*, so freezing them
+randomly would be a much weaker experiment) is frozen at PyTorch's raw
+default initialization (`--reservoir_scale_init 0`), no reservoir-specific
+tuning. Since encode and decode already share this one cell in
+`SegRNN.py`'s design, freezing it removes essentially all of the
+recurrent core's trainable capacity at once — only the value embedding,
+positional embeddings, and predict head remain trainable, roughly 5-10%
+of the reconstruction's parameter count.
+
+**Why:** neither reservoir computing nor Echo State Networks (Jaeger,
+2001) appear anywhere in `docs/SegRNN_paper.pdf` or this repo — this is
+genuinely untested territory for the project. It's motivated by two
+things at once: (1) every strand that injected a *pooled* random feature
+vector into `h_n` (ROCKET's Max/PPV, FFT's top-K magnitude) discarded
+temporal order before injecting it and regressed; a reservoir's state is
+the live end-point of a random recurrence over the actual sequence,
+preserving order/recency structurally instead. (2) this project's
+strongest results (`d_model=256`, Huber loss, pool context, weight
+tying) all reduce *trained* capacity rather than add it — freezing the
+recurrent core entirely is a more radical version of that same lever.
+This strand is the control: does freezing alone do anything, without the
+reservoir-specific initialization real ESN theory calls for?
+
+**Results:** pending — run notebook Part 8.
+
+---
+
+## Strand 23: proper Echo State Network reservoir (`SegRNNReservoir`)
+
+**What changed:** same frozen cell as strand 22, but the recurrent
+weight matrix's spectral radius is rescaled (via `torch.linalg.eigvals`,
+computed once at init) to `--reservoir_spectral_radius` (default 0.9)
+before freezing — the standard ESN range for the "echo state property"
+(stable, fading memory). PyTorch's default RNN init is not tuned for
+this; an untuned random recurrent matrix can be chaotic (radius >> 1) or
+have almost no memory (radius << 1), and frozen weights can never
+correct that later.
+
+**Why this is what separates "a real reservoir" from "a frozen random
+layer":** classical reservoir computing's whole premise is that the
+*fixed* reservoir needs specific dynamical properties (bounded, fading
+memory) to produce a useful nonlinear expansion for a linear readout to
+learn from — properties that don't arise automatically from generic
+random initialization. Comparing this directly against strand 22 tests
+whether that specific tuning step matters here, not just whether
+freezing in general does.
+
+**Results:** pending — run notebook Part 9.
+
+---
+
+## Strand 24: spectral radius sweep (`SegRNNReservoir`)
+
+**What changed:** nothing architecturally — sweeps
+`--reservoir_spectral_radius` across `{0.5, 0.9, 0.99, 1.1}` (below,
+inside, at the edge of, and above the standard ESN stability range) at 2
+horizons (336, 720; same compute-budget reasoning as the first
+notebook's Part 6 and every other narrowed-horizon strand in this
+project).
+
+**Why:** a direct test of whether ESN theory's predictions actually hold
+here. If the echo-state property matters the way the theory says, MSE/MAE
+should be relatively stable for radius <= ~1 and degrade past it
+(loss of the stability/fading-memory guarantee); if results are flat
+across all four values regardless, then strand 23's outcome (whatever it
+turns out to be) isn't really about reservoir dynamics, and the
+naive-vs-tuned comparison in strand 22/23 would need a different
+explanation.
+
+**Results:** pending — run notebook Part 10.
+
+---
+
 ## Discussion
 
 **Checking the prediction made before running anything:** weight tying
@@ -355,3 +433,18 @@ project once fixed, just a better version of a modest one. Weight tying
 and un-shared decode remain the two strands in this document without a
 proposed second attempt; nothing found so far suggests one is warranted
 for either.
+
+**Stated prior for strands 22-24, before running anything:** given every
+other strand that *reduces* trained capacity has won or landed close
+(`d_model=256`, Huber loss, pool context, weight tying), freezing the
+entire recurrent core is the most aggressive version of that lever tried
+in the project — plausible it works better than intuition suggests, but
+also plausible that removing *all* trained recurrence (not just some
+width or some layers) crosses a line the more moderate capacity
+reductions didn't. If strand 23 (tuned) clearly beats strand 22 (naive)
+and strand 24 shows the predicted degradation past radius=1, that's
+strong, specific evidence the echo-state property is doing real work
+here, not just that "any frozen randomness happens to be fine." If
+strand 22 and 23 come back similar to each other, the interesting
+question shifts to why freezing works at all (if it does) rather than
+whether the ESN-specific tuning matters.
