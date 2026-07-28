@@ -94,3 +94,132 @@ Huber and pooling context both touch different parts of the pipeline
 Yeo-Johnson are already known to compete for the same job. That
 compatibility analysis is the next step, before writing any combination
 code.
+
+---
+
+## Combination plan: the seven strands going into the final report
+
+The seven chosen for presentation: (1) Yeo-Johnson, MLE-fit and the
+fixed-lambda sweep; (2) multi-scale window statistics; (3) AIC/BIC
+analysis, then `d_model`; (4) Huber loss; (5) encoder direction
+(bidirectional); (6) pooling context; (7) the `DLinear` post-hoc
+ensemble.
+
+**One correction before building anything:** strand 6 was tested with
+**mean** pooling (`--pool_type mean`, the default) — `SegRNNPoolContext.py`
+supports max pooling too, but it was never actually run. The "both
+metrics improve at 3/4 horizons" result on record is for mean pooling.
+If the report specifically wants to say "max pool," that result doesn't
+exist yet and would need its own run first.
+
+### Two different kinds of combination — this matters for cost, not just logic
+
+These seven strands sit at different levels of the pipeline, and that
+changes what "combining" costs, not just whether it's logically sound:
+
+**Free — no new code, just multiple flags on one run.** Yeo-Johnson
+(`--power_transform`/`--yj_lambda`), Huber loss (`--loss huber`), and
+`d_model` are all handled in `data_provider`/`exp_main.py`'s training
+loop, completely independent of which model class is selected. Any of
+`SegRNN`, `SegRNNWindowStats`, `SegRNNBidir`, `SegRNNPoolContext` can
+already be run with any mix of these three today —
+`run_horizon('SegRNNPoolContext', h, power_transform=4, yj_lambda=-2,
+loss='huber', d_model=256)` is a real, already-supported call. No new
+model file needed for any combination that only touches these three
+axes.
+
+**Needs new code — two architecture ideas living in two separate model
+classes.** Window stats, encoder direction, and pool context are each
+their own file (`SegRNNWindowStats.py`, `SegRNNBidir.py`,
+`SegRNNPoolContext.py`). Combining any two of *these* with each other
+(e.g., pool context *and* window stats in the same forward pass) means
+writing a new hybrid class — only one `--model` can be selected per run.
+The `DLinear` ensemble is a third case: a notebook-level operation
+(train two full models, average predictions afterward), composable with
+anything used to train the `SegRNN` side, but see the gotcha below
+before mixing it with a preprocessing change.
+
+### The one known conflict — don't repeat it
+
+Huber loss and Yeo-Johnson already went head-to-head
+(`docs/stage2_architecture_variants_draft.md` strand 14): combining them
+made H=720's MAE strictly worse (+3.1%) for no extra MSE gain over
+Huber alone — the two compete for the same job (MSE's outlier
+sensitivity) rather than compounding. λ=-2 is a far more extreme version
+of Yeo-Johnson than the MLE-fit lambda tested against Huber; there's no
+reason to expect the conflict gets milder at a more extreme setting, and
+good reason to expect it gets worse. **Don't combine Huber with any
+Yeo-Johnson variant.**
+
+### A technical gotcha for the `DLinear` ensemble specifically
+
+Averaging predictions only makes sense if both models are in the same
+numeric space. `SegRNN` and `DLinear` are currently both trained on
+plain `StandardScaler`d data. If a future combo puts Yeo-Johnson on the
+`SegRNN` side but not `DLinear`'s, their raw predictions live on
+different scales — averaging them directly wouldn't just be
+suboptimal, it would be numerically meaningless. Either inverse-transform
+both back to a common scale first, or keep preprocessing identical across
+both models being ensembled.
+
+### Combinations worth building, grouped by what they're chasing
+
+**A — the MAE chase (your example).** `SegRNNPoolContext` + Yeo-Johnson
+λ=-2 (`--model SegRNNPoolContext --power_transform 4 --yj_lambda -2`).
+Both push MAE the same direction, at different pipeline levels
+(preprocessing vs. architecture), with no known mechanism conflict —
+unlike Huber, pool context doesn't touch the loss function or the
+outlier-sensitivity mechanism λ=-2 is manipulating.
+
+Expectation, stated plainly before running it: λ=-2 alone already gets
+MAE to 0.2832 by doing something fairly extreme to the loss landscape
+(MSE nearly doubles as the cost). Pool context's own MAE effect alone is
+much smaller (-0.8% to -1.0%, vs. λ=-2's -34.5%). Even if the two
+compound perfectly — not guaranteed — pool context's contribution is a
+rounding error next to what λ=-2 is already doing: roughly
+0.2832 × 0.99 ≈ 0.280, not 0.2. Reaching 0.2 needs something that
+changes the mechanism, not a small correction stacked on top of it.
+Worth running to see whether it's additive at all, but the "wow result"
+framing should be set before the run, not chased after it.
+
+**B — the balanced win (the stronger headline candidate for the
+report).** Huber loss + `SegRNNPoolContext` (`--model SegRNNPoolContext
+--loss huber`). Both are this project's only two no-trade-off wins
+(Huber: -4.4%/-3.3% MSE/MAE at H=720; pool context: -0.7% to -1.8% MSE
+*and* -0.8% to -1.0% MAE at 3/4 horizons), touch different parts of the
+pipeline, and have no known conflict with each other. This is the
+strongest candidate for "our best combined model" in the actual report —
+safer than the λ=-2 chase, and the one combination plausible enough to
+beat the reconstruction on *both* metrics at *most* horizons at once,
+something no single strand has done across all four horizons.
+
+**C — efficient and accurate.** `d_model=256` + `SegRNNPoolContext` +
+Huber loss, all three stacked (fully free, no new code). If B holds up,
+this checks whether the same combined win survives at 25.5% of the
+parameters — the practical "ship this" configuration if it does.
+
+**D — lower priority, not core to the report.**
+- Window stats in any combination: the H=720 catastrophe (+9.2% MSE,
+  +8.4% MAE) makes it risky in anything meant to hold up across all four
+  horizons — if used, scope the claim to H<=336 explicitly.
+- Encoder direction: "roughly neutral" is the only characterization on
+  record, no precise numbers transcribed yet — not enough signal to
+  build a targeted combination around.
+- `DLinear` ensemble + Huber (`SegRNN` trained with `--loss huber`, then
+  averaged post-hoc with `DLinear`): free to combine, no known conflict,
+  but the ensembling effect alone was already small — likely a marginal
+  addition on top of B, not a headline on its own.
+
+### Recommended build order
+
+1. **B** (Huber + pool context) — highest expected value, safest bet,
+   directly reportable as "our best model."
+2. **C** (add `d_model=256` on top of B) — if B works, immediately worth
+   checking the efficient version.
+3. **A** (the λ=-2 MAE chase) — worth doing for the report's honesty
+   (the question was asked, the answer belongs in the writeup either
+   way), but go in with the tempered expectation above, not the 0.2
+   target.
+4. Skip window-stats and encoder-direction combinations unless B/C/A
+   leave time — the evidence for including either is weak enough that
+   they're more likely to dilute a combination than strengthen it.
