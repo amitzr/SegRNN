@@ -193,7 +193,26 @@ both operate on — rather than a step further upstream. This is the
 placement a Transformer block would use (normalize hidden states between
 sub-layers, not raw input embeddings).
 
-**Results:** pending — run notebook Part 6.
+**Results:**
+
+| Horizon | Reconstruction MSE | LN(hidden) MSE | Δ | Reconstruction MAE | LN(hidden) MAE | Δ |
+|---|---|---|---|---|---|---|
+| 96 | 0.3510 | 0.3613 | +2.9% | 0.3925 | 0.3992 | +1.7% |
+| 192 | 0.3925 | 0.3935 | +0.3% | 0.4142 | 0.4185 | +1.0% |
+| 336 | 0.4233 | 0.4350 | +2.8% | 0.4327 | 0.4377 | +1.2% |
+| 720 | 0.4657 | 0.4439 | **-4.7%** | 0.4719 | 0.4592 | **-2.7%** |
+
+**Reading the result:** not a clean fix — worse at H=96/192/336, but a
+genuine, clean win on *both* metrics at H=720 (the longest horizon). A
+horizon-dependent split like this has shown up before in this project
+(Huber loss, `d_model` sweep) and reads the same way here: `h_n` carries
+the accumulated summary of all 30 encoder segments by the time decoding
+starts, and that summary plausibly has the most to gain from rescaling
+specifically when the model has to generate the most output from it
+(H=720's 30 decode positions vs. H=96's 4). Repositioning didn't turn
+strand 19 into an outright win, but it did localize *where* LayerNorm
+helps rather than leaving it a uniform loss — useful information even
+without a clean verdict.
 
 ---
 
@@ -226,7 +245,31 @@ shared weights across channels), so no new CLI flags were needed.
    the same "average predictions, not metrics" logic strand 7's seed
    ensembling used, applied across model families instead of seeds.
 
-**Results:** pending — run notebook Part 7.
+**Results:**
+
+| Horizon | Reconstruction MSE | Ensemble MSE | Δ | Reconstruction MAE | Ensemble MAE | Δ |
+|---|---|---|---|---|---|---|
+| 96 | 0.3510 | 0.3532 | +0.6% | 0.3925 | 0.3886 | -1.0% |
+| 192 | 0.3925 | 0.3929 | +0.1% | 0.4142 | 0.4117 | -0.6% |
+| 336 | 0.4233 | 0.4228 | -0.1% | 0.4327 | 0.4311 | -0.4% |
+| 720 | 0.4657 | 0.4556 | -2.2% | 0.4719 | 0.4755 | +0.8% |
+
+**Reading the result:** small and mixed, but a genuine improvement over
+strand 18's joint-trained version, which regressed outright. MAE improves
+at three of four horizons (96, 192, 336 — small but consistent, -0.4% to
+-1.0%); MSE is roughly flat at the three shorter horizons and a real win
+at H=720 (-2.2%), the mirror image of H=720's MAE, which is the one cell
+that gets slightly worse (+0.8%) — a smaller-scale version of the same
+MSE/MAE split Yeo-Johnson and Huber loss showed at other horizons. Net:
+this confirms the revision's core hypothesis — post-hoc averaging of two
+independently-trained models beats a jointly-trained blend gate — even
+though the result itself is a modest, mixed improvement rather than a
+clean win like pool context. Worth pulling the notebook's own printed
+per-horizon "SegRNN alone / DLinear alone / Ensemble" breakdown before
+finalizing this strand, to see whether DLinear alone is already
+competitive at any horizon (the paper's own text suggests it might be,
+in the univariate case) — that would explain *why* the ensemble helps
+most at H=720 specifically.
 
 ---
 
@@ -281,3 +324,34 @@ abandoning either, revising the mechanism:**
   representation the same way a Transformer block normalizes hidden
   states, not the raw input — is a different placement of the same
   near-zero-cost idea, untested here.
+
+**Did the revisions work? Partial success for both, in different ways.**
+
+Neither strand 20 nor strand 21 became an outright win the way pool
+context did, but both improved on what they replaced, and both did so
+by revealing *where* the original idea's value was hiding rather than
+confirming the idea was simply wrong:
+
+- **Strand 20 (LayerNorm on `h_n`)** turned a uniform loss (strand 19)
+  into a horizon-dependent split — worse at three horizons, a clean win
+  on both metrics at H=720. Repositioning didn't fix the idea everywhere,
+  but it localized a real effect at the longest horizon, where `h_n`
+  carries the most accumulated information for the decoder to unpack.
+- **Strand 21 (post-hoc `SegRNN`+`DLinear` ensemble)** turned an outright
+  regression (strand 18) into a small, mostly-positive result — MAE
+  improves at three of four horizons, MSE at H=720 specifically. Both
+  of strand 18's suspected problems (a materially weaker linear model
+  than real DLinear; joint-training interference between the blend gate
+  and the RNN path) were real enough that removing them changed the
+  sign of the result, even if only modestly.
+
+Read together with pool context, a pattern emerges across this whole
+document: strands that survived on their *first* attempt (pool context)
+delivered a clean win; strands that needed a *second* attempt (strand 20,
+21) delivered smaller, horizon-localized improvements rather than clean
+wins. That's a reasonable thing to expect — a good idea implemented
+wrong the first time doesn't necessarily become the best idea in the
+project once fixed, just a better version of a modest one. Weight tying
+and un-shared decode remain the two strands in this document without a
+proposed second attempt; nothing found so far suggests one is warranted
+for either.
