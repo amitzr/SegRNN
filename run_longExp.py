@@ -46,9 +46,14 @@ parser.add_argument('--hour_emb_dim', type=int, default=16, help='SegRNNTime: ho
 parser.add_argument('--weekday_emb_dim', type=int, default=8, help='SegRNNTime: day-of-week embedding width')
 
 # Stage 2 improvement (Dataset_ETT_hour only): swap the plain StandardScaler
-# for a per-channel Yeo-Johnson power transform (standardize=True), fit on
-# train only. 0 = off, reconstruction unaffected.
-parser.add_argument('--power_transform', type=int, default=0, help='Yeo-Johnson power transform instead of StandardScaler; True 1 False 0')
+# for a power transform, fit on train only. 0 = off (reconstruction
+# unaffected), 1 = Yeo-Johnson (MLE-fit lambda), 2 = Box-Cox (MLE-fit
+# lambda; ETTh1 is all-positive, so no shift needed), 3 = Box-Cox with a
+# fixed lambda (--boxcox_lambda), not fit via maximum likelihood.
+parser.add_argument('--power_transform', type=int, default=0,
+                     help='0=off, 1=Yeo-Johnson (MLE), 2=Box-Cox (MLE), 3=Box-Cox (fixed --boxcox_lambda)')
+parser.add_argument('--boxcox_lambda', type=float, default=0.0,
+                     help='Fixed Box-Cox lambda, only used when --power_transform 3')
 
 # SegRNNRocket (Stage 2 improvement): fixed random-convolution feature bank
 parser.add_argument('--rocket_kernels', type=int, default=32, help='SegRNNRocket: number of random conv kernels')

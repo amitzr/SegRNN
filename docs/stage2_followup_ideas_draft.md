@@ -1,9 +1,10 @@
 # Stage 2 report content — follow-up architecture ideas (draft)
 
-Draft content for ten more independent Stage 2 strands (five original,
-two revised variants built after the originals underperformed, and three
-testing whether SegRNN's own recurrent cell works as a frozen
-reservoir-computing / Echo State Network core), alongside
+Draft content for thirteen more independent Stage 2 strands (five
+original, two revised variants built after the originals underperformed,
+three testing whether SegRNN's own recurrent cell works as a frozen
+reservoir-computing / Echo State Network core, and three on power-
+transform preprocessing and window-based features), alongside
 `docs/stage2_report_draft.md`, `docs/stage2_efficiency_draft.md`,
 `docs/stage2_revin_attn_draft.md`, `docs/stage2_new_strands_draft.md`,
 and `docs/stage2_architecture_variants_draft.md`. Sources:
@@ -348,6 +349,81 @@ naive-vs-tuned comparison in strand 22/23 would need a different
 explanation.
 
 **Results:** pending — run notebook Part 10.
+
+**All three reservoir strands (22-24): "didn't improve"** — user-reported
+after running, exact per-horizon figures not yet transcribed here. Worth
+pulling the naive-vs-tuned and radius-sweep comparisons the notebook
+prints before finalizing this section, since the *shape* of the failure
+(does tuning help at all relative to naive freezing, is there any radius
+sensitivity) is as informative as the headline regression.
+
+---
+
+## Strand 25: Box-Cox, MLE-fit lambda, vs. Yeo-Johnson
+
+**What changed:** `--power_transform 2` fits Box-Cox's lambda via
+maximum likelihood — the same fitting procedure Yeo-Johnson's own
+strand already uses (`docs/stage2_new_strands_draft.md` strand 5), just
+a different transform family. `data_provider/data_loader.py`'s
+`Dataset_ETT_hour` now supports both under one `--power_transform` enum
+(0=off, 1=Yeo-Johnson, 2=Box-Cox MLE, 3=Box-Cox fixed-lambda).
+
+**Why Box-Cox and not just Yeo-Johnson everywhere:** Box-Cox requires
+strictly positive data (`x > 0`); Yeo-Johnson was chosen originally
+specifically because it handles zero/negative values, which Box-Cox
+cannot. ETTh1 turned out to be all-positive (confirmed directly on the
+raw CSV before building this), so Box-Cox is actually applicable here
+without any shifting workaround — worth checking whether the less
+general, more constrained transform behaves differently from Yeo-Johnson
+on data where both are valid.
+
+**Results:** pending — run notebook Part 11.
+
+---
+
+## Strand 26: Box-Cox fixed-lambda sweep
+
+**What changed:** `--power_transform 3` with `--boxcox_lambda` swept
+over `{-2, -1, -0.5, 0, 0.5, 1, 2}` (no MLE fitting) at 2 horizons (336,
+720), compared directly against strand 25's MLE-fit lambda in the same
+table.
+
+**Why:** MLE optimizes for train-split *normality*, not forecast
+accuracy — those are different objectives, and Yeo-Johnson's own result
+is direct evidence they can diverge here (a real MSE win at every
+horizon, a real MAE cost at every horizon, from a transform chosen
+purely to make the data look Gaussian). This checks whether a
+non-MLE lambda trades off better on the metric that actually matters, or
+whether the MLE-fit lambda already sits at the best point on that curve
+— either answer is a legitimate, reportable finding, not a wasted sweep.
+
+**Results:** pending — run notebook Part 12.
+
+---
+
+## Strand 27: multi-scale window statistics (`SegRNNWindowStats`)
+
+**What changed:** mean, standard deviation, and linear-trend slope, each
+computed over the last {24, 168, 720} timesteps (day/week/full
+look-back) of the raw window, injected into `h_n` before decoding — the
+same injection point `SegRNNRocket`/`SegRNNFFT` used, a classical
+(not signal-processing, not classification-derived) feature source. 9
+deterministic features per channel, no learnable parameters in the
+extractor itself, only in the projection into `h_n`.
+
+**Why:** `docs/Pre-precessing.pdf`'s feature-engineering taxonomy names
+"window-based features" as its own category, distinct from the
+convolutional/ROCKET/shapelet items already tried from that same slide
+(ROCKET: `docs/stage2_new_strands_draft.md` strand 8; FFT, the
+taxonomy's frequency-domain analogue: `docs/stage2_architecture_variants_draft.md`
+strand 9). It's the simplest, most classical item in that list —
+matching this project's general finding that simpler tends to win —
+and it hasn't been tried. Also a fourth independent test of whether the
+"inject into `h_n`" pattern's repeated failures (calendar features,
+attention, ROCKET, FFT) are about the mechanism or specific to the
+feature sources tried so far.
+
+**Results:** pending — run notebook Part 13.
 
 ---
 

@@ -43,7 +43,8 @@ def data_provider(args, flag):
         freq=freq
     )
     if Data is Dataset_ETT_hour and getattr(args, 'power_transform', 0):
-        data_kwargs['power_transform'] = True
+        data_kwargs['power_transform'] = args.power_transform
+        data_kwargs['boxcox_lambda'] = getattr(args, 'boxcox_lambda', 0.0)
     data_set = Data(**data_kwargs)
     print(flag, len(data_set))
     data_loader = DataLoader(

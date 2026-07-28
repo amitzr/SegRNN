@@ -11,10 +11,46 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+class FixedLambdaBoxCox:
+    """Box-Cox with a FIXED lambda (no maximum-likelihood fitting) plus
+    post-transform standardization -- same external behavior as
+    sklearn.preprocessing.PowerTransformer(method='box-cox', standardize=True),
+    but with lambda specified directly rather than fit to maximize
+    normality. Requires strictly positive input (Box-Cox's own
+    requirement; ETTh1 is confirmed all-positive, so no shifting needed
+    here). Mirrors the sklearn scaler interface (fit/transform/inverse_transform)
+    so it drops into Dataset_ETT_hour's self.scaler slot unchanged."""
+
+    def __init__(self, lmbda):
+        self.lmbda = lmbda
+
+    def _boxcox(self, X):
+        if self.lmbda == 0:
+            return np.log(X)
+        return (np.power(X, self.lmbda) - 1) / self.lmbda
+
+    def fit(self, X):
+        Xt = self._boxcox(X)
+        self.mean_ = Xt.mean(axis=0)
+        self.std_ = Xt.std(axis=0)
+        self.std_ = np.where(self.std_ == 0, 1.0, self.std_)
+        return self
+
+    def transform(self, X):
+        Xt = self._boxcox(X)
+        return (Xt - self.mean_) / self.std_
+
+    def inverse_transform(self, X):
+        Xt = X * self.std_ + self.mean_
+        if self.lmbda == 0:
+            return np.exp(Xt)
+        return np.power(Xt * self.lmbda + 1, 1.0 / self.lmbda)
+
+
 class Dataset_ETT_hour(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h', power_transform=False):
+                 target='OT', scale=True, timeenc=0, freq='h', power_transform=0, boxcox_lambda=0.0):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -36,19 +72,30 @@ class Dataset_ETT_hour(Dataset):
         self.timeenc = timeenc
         self.freq = freq
         self.power_transform = power_transform
+        self.boxcox_lambda = boxcox_lambda
 
         self.root_path = root_path
         self.data_path = data_path
         self.__read_data__()
 
     def __read_data__(self):
-        if self.power_transform:
-            # Stage 2 candidate: Yeo-Johnson power transform (docs/Pre-precessing.pdf)
-            # in place of plain StandardScaler. standardize=True already
-            # zero-means/unit-variances the transformed values, so this is a
-            # drop-in swap, not an addition on top of StandardScaler.
+        # Stage 2 candidates (docs/Pre-precessing.pdf): power transforms in
+        # place of plain StandardScaler. standardize=True/the manual
+        # mean/std step already zero-means/unit-variances the transformed
+        # values, so each is a drop-in swap, not an addition on top of
+        # StandardScaler. power_transform: 0=off, 1=Yeo-Johnson (MLE-fit
+        # lambda), 2=Box-Cox (MLE-fit lambda), 3=Box-Cox (fixed lambda,
+        # --boxcox_lambda) -- lets the MLE-optimal (most-Gaussian) lambda
+        # be compared directly against a fixed-value sweep on the same
+        # forecast-accuracy axis MLE was never optimizing for.
+        if self.power_transform == 1:
             from sklearn.preprocessing import PowerTransformer
             self.scaler = PowerTransformer(method='yeo-johnson', standardize=True)
+        elif self.power_transform == 2:
+            from sklearn.preprocessing import PowerTransformer
+            self.scaler = PowerTransformer(method='box-cox', standardize=True)
+        elif self.power_transform == 3:
+            self.scaler = FixedLambdaBoxCox(lmbda=self.boxcox_lambda)
         else:
             self.scaler = StandardScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
