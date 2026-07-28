@@ -23,6 +23,7 @@ the decision itself.
 | RevIN, `affine=False` | Regressed at every horizon, +3.1% to +4.6% MSE | Yes (`DL_for_TS.pdf`, normalization slide) | **No** |
 | RevIN, `affine=True` | Better than `affine=False`, still net worse than no RevIN | Yes (same slide; this variant is this project's own follow-up, not itself lecture content) | **No** |
 | Yeo-Johnson power transform | MSE **-3.6% to -7.4%** at every horizon; MAE **+4.1% to +6.7%** at every horizon — a real trade-off, not a clean win | Yes (`Pre-precessing.pdf`) | **Yes** — best single MSE result in the project; combine only where MSE is the metric that matters, and check what it does to MAE in any combination |
+| Box-Cox (MLE-fit and fixed-lambda sweep) | **Dropped, not measured** — built on the assumption ETTh1 is strictly positive (Box-Cox's requirement); sklearn's own check proved that false, and a related implementation bug (no positivity validation in the fixed-lambda path) silently produced a wasted NaN training run before the false premise was caught | Yes (`Pre-precessing.pdf`, as the positive-only sibling of Yeo-Johnson) | **N/A** — abandoned before any usable result existed, not a "no," a non-result |
 
 ## 2. Add stronger time-series features
 
@@ -31,6 +32,7 @@ the decision itself.
 | Calendar features in positional embedding (3 attempts: encoder x2, decoder) | Regressed at every horizon, every attempt, seed-confirmed real | Partial (`DL_for_TS.pdf` embedding-layer slide covers embedding categorical/cyclical features generally, not this specific use) | **No** |
 | ROCKET random-convolution features | Regressed at 3/4 horizons; H=336's +8.7% MSE is the worst single-horizon regression in the project | Yes, as a technique (`Pre-precessing.pdf`), but classification-era, adapted to regression without precedent | **No** |
 | Top-K FFT-magnitude features (with and without Yeo-Johnson) | Qualitatively "terrible" (exact table not yet transcribed) | Partial (`Pre-precessing.pdf` covers window/frequency features generally, not top-K FFT specifically) | **No** |
+| Multi-scale window statistics (mean/std/slope, day/week/full-lookback) | Roughly flat at H=96, real small win at H=192/336, **sharp regression at H=720** (+9.2% MSE, +8.4% MAE — the worst single per-horizon number in the project) | Yes (`Pre-precessing.pdf`, "window-based features" is its own named taxonomy item) | **Maybe** — only for short-to-medium horizon deployments; avoid at H=720. Not seed-confirmed, unlike most other headline results here |
 
 ## 3. Improve or tune the forecasting model
 
@@ -58,6 +60,9 @@ the decision itself.
 | Linear shortcut, jointly-trained blend gate | Worse (superseded by the post-hoc ensemble above) | No | **No** |
 | LayerNorm after input embedding | Worse (superseded by the `h_n` version below) | No | **No** |
 | LayerNorm on `h_n` (hidden state, before decode) | Worse at H=96/192/336; **clean win on both metrics at H=720** (-4.7% MSE, -2.7% MAE) | No | **Maybe** — only if the deployment horizon is long; a regression at shorter horizons otherwise |
+| Frozen recurrent cell, naive init (`SegRNNReservoir`, no ESN tuning) | Regressed (user-reported; exact per-horizon table not yet transcribed) | No (ESN/reservoir computing appears nowhere in the paper or these lectures) | **No** |
+| Frozen recurrent cell, proper ESN init (spectral radius 0.9) | Regressed (user-reported; exact per-horizon table not yet transcribed) | No | **No** |
+| Frozen recurrent cell, spectral radius sweep `{0.5,0.9,0.99,1.1}` | Regressed across the sweep (user-reported; exact table not yet transcribed) | No | **No** — worth checking whether the sweep at least shows the predicted radius-1 degradation before writing this off as fully uninformative |
 
 ## 5. Improve computational efficiency
 

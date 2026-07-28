@@ -1,10 +1,11 @@
 # Stage 2 report content — follow-up architecture ideas (draft)
 
-Draft content for thirteen more independent Stage 2 strands (five
-original, two revised variants built after the originals underperformed,
-three testing whether SegRNN's own recurrent cell works as a frozen
-reservoir-computing / Echo State Network core, and three on power-
-transform preprocessing and window-based features), alongside
+Draft content for eleven more independent, completed Stage 2 strands
+(five original, two revised variants built after the originals
+underperformed, three testing whether SegRNN's own recurrent cell works
+as a frozen reservoir-computing / Echo State Network core, and one
+window-based feature strand), plus a documented, deliberately abandoned
+attempt at Box-Cox preprocessing, alongside
 `docs/stage2_report_draft.md`, `docs/stage2_efficiency_draft.md`,
 `docs/stage2_revin_attn_draft.md`, `docs/stage2_new_strands_draft.md`,
 and `docs/stage2_architecture_variants_draft.md`. Sources:
@@ -359,49 +360,47 @@ sensitivity) is as informative as the headline regression.
 
 ---
 
-## Strand 25: Box-Cox, MLE-fit lambda, vs. Yeo-Johnson
+## Strands 25-26: Box-Cox (MLE-fit and fixed-lambda sweep) — dropped
 
-**What changed:** `--power_transform 2` fits Box-Cox's lambda via
-maximum likelihood — the same fitting procedure Yeo-Johnson's own
-strand already uses (`docs/stage2_new_strands_draft.md` strand 5), just
-a different transform family. `data_provider/data_loader.py`'s
-`Dataset_ETT_hour` now supports both under one `--power_transform` enum
-(0=off, 1=Yeo-Johnson, 2=Box-Cox MLE, 3=Box-Cox fixed-lambda).
+**What was attempted:** `--power_transform 2` (Box-Cox, MLE-fit lambda,
+directly comparable to Yeo-Johnson's own MLE fit) and `--power_transform
+3` with `--boxcox_lambda` swept over `{-2, -1, -0.5, 0, 0.5, 1, 2}` (no
+MLE fitting), to check whether MLE's normality objective actually agrees
+with forecast accuracy — motivated by Yeo-Johnson's own result (a real
+MSE win, a real MAE cost) already showing those two objectives can
+diverge.
 
-**Why Box-Cox and not just Yeo-Johnson everywhere:** Box-Cox requires
-strictly positive data (`x > 0`); Yeo-Johnson was chosen originally
-specifically because it handles zero/negative values, which Box-Cox
-cannot. ETTh1 turned out to be all-positive (confirmed directly on the
-raw CSV before building this), so Box-Cox is actually applicable here
-without any shifting workaround — worth checking whether the less
-general, more constrained transform behaves differently from Yeo-Johnson
-on data where both are valid.
+**Why dropped:** built on the assumption that ETTh1 is strictly positive
+(Box-Cox's own requirement) — that assumption turned out to be false.
+sklearn's own Box-Cox implementation caught it immediately on the
+MLE-fit run (`ValueError: The Box-Cox transformation can only be applied
+to strictly positive data`). The fixed-lambda run exposed a real
+implementation bug on top of the false premise: `FixedLambdaBoxCox`
+(this strand's custom scaler, needed since sklearn's `PowerTransformer`
+only supports MLE-fit lambdas, not a specified one) never validated
+positivity the way sklearn's own implementation does, so instead of
+failing fast it silently computed `x^lambda` on zero/negative values,
+produced `NaN` losses, and burned a full 30-epoch training run before
+the failure surfaced (the notebook's own regex correctly refused to
+parse `"mse:nan"` as a number, but only after the run had already
+completed).
 
-**Results:** pending — run notebook Part 11.
-
----
-
-## Strand 26: Box-Cox fixed-lambda sweep
-
-**What changed:** `--power_transform 3` with `--boxcox_lambda` swept
-over `{-2, -1, -0.5, 0, 0.5, 1, 2}` (no MLE fitting) at 2 horizons (336,
-720), compared directly against strand 25's MLE-fit lambda in the same
-table.
-
-**Why:** MLE optimizes for train-split *normality*, not forecast
-accuracy — those are different objectives, and Yeo-Johnson's own result
-is direct evidence they can diverge here (a real MSE win at every
-horizon, a real MAE cost at every horizon, from a transform chosen
-purely to make the data look Gaussian). This checks whether a
-non-MLE lambda trades off better on the metric that actually matters, or
-whether the MLE-fit lambda already sits at the best point on that curve
-— either answer is a legitimate, reportable finding, not a wasted sweep.
-
-**Results:** pending — run notebook Part 12.
+**Decision:** dropped rather than fixed with a shift workaround.
+Yeo-Johnson already handles negative values natively, is already the
+project's headline preprocessing result, and a shifted Box-Cox would be
+testing a modified transform rather than the textbook one motivating
+this strand in the first place. `data_provider/data_loader.py`'s
+`--power_transform 2/3` support and `FixedLambdaBoxCox` class remain in
+the repo (harmless, unused) in case a shifted variant is worth
+revisiting later — but it is not part of this project's Stage 2 results.
 
 ---
 
 ## Strand 27: multi-scale window statistics (`SegRNNWindowStats`)
+
+(Numbered 27 for continuity with the strands above, though 25-26 above
+were dropped rather than completed — this is the third strand actually
+run in this batch of three.)
 
 **What changed:** mean, standard deviation, and linear-trend slope, each
 computed over the last {24, 168, 720} timesteps (day/week/full
@@ -423,7 +422,35 @@ and it hasn't been tried. Also a fourth independent test of whether the
 attention, ROCKET, FFT) are about the mechanism or specific to the
 feature sources tried so far.
 
-**Results:** pending — run notebook Part 13.
+**Results:**
+
+| Horizon | Reconstruction MSE | Window Stats MSE | Δ | Reconstruction MAE | Window Stats MAE | Δ |
+|---|---|---|---|---|---|---|
+| 96 | 0.3510 | 0.3511 | ~0% | 0.3925 | 0.3919 | ~0% |
+| 192 | 0.3925 | 0.3857 | -1.7% | 0.4142 | 0.4141 | ~0% |
+| 336 | 0.4233 | 0.4114 | **-2.8%** | 0.4327 | 0.4338 | +0.3% |
+| 720 | 0.4657 | 0.5087 | **+9.2%** | 0.4719 | 0.5116 | **+8.4%** |
+
+**Reading the result:** roughly flat at H=96, a real small win at H=192
+and H=336 (MSE improves, MAE essentially unchanged), then a sharp
+regression at H=720 on both metrics — the single worst per-horizon
+number recorded anywhere in this project. This is a genuinely mixed
+result, not a clean win or a clean loss.
+
+A candidate mechanism, offered with real uncertainty rather than as a
+settled explanation: the window-statistics context is one static vector
+added to `h_n` and then broadcast across every PMF decode position — at
+H=720 that means 30 decode positions share it (vs. 4 at H=96), so if the
+context is even slightly miscalibrated, more of the output depends on
+it. This is *not* a pattern that holds uniformly across this project's
+other `h_n`-injection strands, though — ROCKET's worst horizon was 336,
+not 720 (`docs/stage2_new_strands_draft.md` strand 8); pool context's
+*best* horizon was 720 (strand 16, this document). So "more decode
+positions sharing one context vector" isn't a general failure mode by
+itself — something about *this specific* feature source interacts badly
+with the H=720 case. Worth a seed-variance check before treating the
+H=720 magnitude as fully real rather than partly a single unlucky run —
+unlike the calendar-feature finding, this hasn't been seed-confirmed.
 
 ---
 
