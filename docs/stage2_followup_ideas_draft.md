@@ -1,11 +1,12 @@
 # Stage 2 report content — follow-up architecture ideas (draft)
 
-Draft content for eleven more independent, completed Stage 2 strands
+Draft content for twelve more independent, completed Stage 2 strands
 (five original, two revised variants built after the originals
 underperformed, three testing whether SegRNN's own recurrent cell works
-as a frozen reservoir-computing / Echo State Network core, and one
-window-based feature strand), plus a documented, deliberately abandoned
-attempt at Box-Cox preprocessing, alongside
+as a frozen reservoir-computing / Echo State Network core, one
+window-based feature strand, and a Yeo-Johnson fixed-lambda sweep), plus
+a documented, deliberately abandoned attempt at Box-Cox preprocessing,
+alongside
 `docs/stage2_report_draft.md`, `docs/stage2_efficiency_draft.md`,
 `docs/stage2_revin_attn_draft.md`, `docs/stage2_new_strands_draft.md`,
 and `docs/stage2_architecture_variants_draft.md`. Sources:
@@ -451,6 +452,36 @@ itself — something about *this specific* feature source interacts badly
 with the H=720 case. Worth a seed-variance check before treating the
 H=720 magnitude as fully real rather than partly a single unlucky run —
 unlike the calendar-feature finding, this hasn't been seed-confirmed.
+
+---
+
+## Strand 28: Yeo-Johnson fixed-lambda sweep (`--power_transform 4`)
+
+**What changed:** `Yeo-Johnson` (`--power_transform 1`, used throughout
+this project's headline preprocessing result) fits lambda via maximum
+likelihood. This strand adds `--power_transform 4` with `--yj_lambda`
+fixed (no MLE fitting), swept over `{-2, -1, -0.5, 0, 0.5, 1, 2}` at 2
+horizons (336, 720), compared directly against the already-measured
+MLE-fit result (`colab_runner.ipynb` Part 0a). A new
+`FixedLambdaYeoJohnson` class implements the transform manually (sklearn's
+`PowerTransformer` only supports MLE-fit lambdas, not a specified one) —
+verified against a numerical round-trip test (`transform` then
+`inverse_transform` recovers the original values to numerical precision,
+across the full lambda grid, on data including negative values) before
+being wired into the training pipeline.
+
+**Why this is the version of the sweep that actually works:** this
+project already tried this exact question — does the MLE-optimal
+(most-Gaussian) lambda also happen to be forecast-optimal — as a Box-Cox
+sweep (strands 25-26), which had to be dropped because ETTh1 turned out
+not to be strictly positive, Box-Cox's own requirement. Yeo-Johnson has
+no such requirement (defined for all real values), which is the whole
+reason it was chosen over Box-Cox for this project's actual
+preprocessing result in the first place — so the same sweep applies here
+with no shifting workaround, no dropped premise, and no risk of the
+silent-NaN bug that hit the Box-Cox fixed-lambda path.
+
+**Results:** pending — run notebook Part 0.
 
 ---
 

@@ -48,12 +48,17 @@ parser.add_argument('--weekday_emb_dim', type=int, default=8, help='SegRNNTime: 
 # Stage 2 improvement (Dataset_ETT_hour only): swap the plain StandardScaler
 # for a power transform, fit on train only. 0 = off (reconstruction
 # unaffected), 1 = Yeo-Johnson (MLE-fit lambda), 2 = Box-Cox (MLE-fit
-# lambda; ETTh1 is all-positive, so no shift needed), 3 = Box-Cox with a
-# fixed lambda (--boxcox_lambda), not fit via maximum likelihood.
+# lambda; dropped as a Stage 2 result, ETTh1 is not strictly positive),
+# 3 = Box-Cox with a fixed lambda (--boxcox_lambda, also dropped),
+# 4 = Yeo-Johnson with a fixed lambda (--yj_lambda), not fit via maximum
+# likelihood -- Yeo-Johnson (unlike Box-Cox) is defined for all real
+# values, so this needs no positivity workaround.
 parser.add_argument('--power_transform', type=int, default=0,
-                     help='0=off, 1=Yeo-Johnson (MLE), 2=Box-Cox (MLE), 3=Box-Cox (fixed --boxcox_lambda)')
+                     help='0=off, 1=Yeo-Johnson (MLE), 2=Box-Cox (MLE), 3=Box-Cox (fixed --boxcox_lambda), 4=Yeo-Johnson (fixed --yj_lambda)')
 parser.add_argument('--boxcox_lambda', type=float, default=0.0,
                      help='Fixed Box-Cox lambda, only used when --power_transform 3')
+parser.add_argument('--yj_lambda', type=float, default=0.0,
+                     help='Fixed Yeo-Johnson lambda, only used when --power_transform 4')
 
 # SegRNNRocket (Stage 2 improvement): fixed random-convolution feature bank
 parser.add_argument('--rocket_kernels', type=int, default=32, help='SegRNNRocket: number of random conv kernels')

@@ -47,10 +47,69 @@ class FixedLambdaBoxCox:
         return np.power(Xt * self.lmbda + 1, 1.0 / self.lmbda)
 
 
+class FixedLambdaYeoJohnson:
+    """Yeo-Johnson with a FIXED lambda (no maximum-likelihood fitting) plus
+    post-transform standardization -- same external behavior as
+    sklearn.preprocessing.PowerTransformer(method='yeo-johnson', standardize=True),
+    but with lambda specified directly. Unlike Box-Cox, defined for all
+    real x (no positivity requirement) -- the whole reason Yeo-Johnson
+    was picked over Box-Cox in the first place, so this sweep needs no
+    shifting workaround the way the (dropped) Box-Cox sweep would have.
+    Mirrors the sklearn scaler interface (fit/transform/inverse_transform)
+    so it drops into Dataset_ETT_hour's self.scaler slot unchanged."""
+
+    def __init__(self, lmbda):
+        self.lmbda = lmbda
+
+    def _yeojohnson(self, X):
+        lmbda = self.lmbda
+        X = np.asarray(X, dtype=np.float64)
+        out = np.empty_like(X)
+        pos = X >= 0
+        neg = ~pos
+        if lmbda != 0:
+            out[pos] = (np.power(X[pos] + 1, lmbda) - 1) / lmbda
+        else:
+            out[pos] = np.log1p(X[pos])
+        if lmbda != 2:
+            out[neg] = -(np.power(-X[neg] + 1, 2 - lmbda) - 1) / (2 - lmbda)
+        else:
+            out[neg] = -np.log1p(-X[neg])
+        return out
+
+    def fit(self, X):
+        Xt = self._yeojohnson(X)
+        self.mean_ = Xt.mean(axis=0)
+        self.std_ = Xt.std(axis=0)
+        self.std_ = np.where(self.std_ == 0, 1.0, self.std_)
+        return self
+
+    def transform(self, X):
+        Xt = self._yeojohnson(X)
+        return (Xt - self.mean_) / self.std_
+
+    def inverse_transform(self, X):
+        Xt = X * self.std_ + self.mean_  # the actual Yeo-Johnson-transformed value (y)
+        lmbda = self.lmbda
+        out = np.empty_like(Xt)
+        pos = Xt >= 0
+        neg = ~pos
+        if lmbda != 0:
+            out[pos] = np.power(Xt[pos] * lmbda + 1, 1.0 / lmbda) - 1
+        else:
+            out[pos] = np.expm1(Xt[pos])
+        if lmbda != 2:
+            out[neg] = 1 - np.power(1 - Xt[neg] * (2 - lmbda), 1.0 / (2 - lmbda))
+        else:
+            out[neg] = 1 - np.exp(-Xt[neg])
+        return out
+
+
 class Dataset_ETT_hour(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h', power_transform=0, boxcox_lambda=0.0):
+                 target='OT', scale=True, timeenc=0, freq='h', power_transform=0,
+                 boxcox_lambda=0.0, yj_lambda=0.0):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -73,6 +132,7 @@ class Dataset_ETT_hour(Dataset):
         self.freq = freq
         self.power_transform = power_transform
         self.boxcox_lambda = boxcox_lambda
+        self.yj_lambda = yj_lambda
 
         self.root_path = root_path
         self.data_path = data_path
@@ -84,10 +144,12 @@ class Dataset_ETT_hour(Dataset):
         # mean/std step already zero-means/unit-variances the transformed
         # values, so each is a drop-in swap, not an addition on top of
         # StandardScaler. power_transform: 0=off, 1=Yeo-Johnson (MLE-fit
-        # lambda), 2=Box-Cox (MLE-fit lambda), 3=Box-Cox (fixed lambda,
-        # --boxcox_lambda) -- lets the MLE-optimal (most-Gaussian) lambda
-        # be compared directly against a fixed-value sweep on the same
-        # forecast-accuracy axis MLE was never optimizing for.
+        # lambda), 2=Box-Cox (MLE-fit lambda; dropped as a Stage 2 result,
+        # see docs -- ETTh1 is not strictly positive), 3=Box-Cox (fixed
+        # lambda, --boxcox_lambda; also dropped), 4=Yeo-Johnson (fixed
+        # lambda, --yj_lambda) -- lets the MLE-optimal (most-Gaussian)
+        # lambda be compared directly against a fixed-value sweep on the
+        # same forecast-accuracy axis MLE was never optimizing for.
         if self.power_transform == 1:
             from sklearn.preprocessing import PowerTransformer
             self.scaler = PowerTransformer(method='yeo-johnson', standardize=True)
@@ -96,6 +158,8 @@ class Dataset_ETT_hour(Dataset):
             self.scaler = PowerTransformer(method='box-cox', standardize=True)
         elif self.power_transform == 3:
             self.scaler = FixedLambdaBoxCox(lmbda=self.boxcox_lambda)
+        elif self.power_transform == 4:
+            self.scaler = FixedLambdaYeoJohnson(lmbda=self.yj_lambda)
         else:
             self.scaler = StandardScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
